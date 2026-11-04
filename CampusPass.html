@@ -3,415 +3,506 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>CampusPass - College Outpass & Leave Management</title>
-  
-  <!-- Tailwind CSS & Lucide Icons -->
+  <title>SmartPass - RGUKT Outpass & Leave Management</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #f8fafc;
-      color: #0f172a;
-    }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 9999px;
-    }
+    body { font-family: 'Inter', sans-serif; background:#f8fafc; color:#0f172a; }
+    @media print { header, footer, .no-print { display:none !important; } #modalBackdrop { position:static; background:none; } }
   </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between antialiased selection:bg-indigo-500 selection:text-white">
+<body class="min-h-screen flex flex-col antialiased">
 
-  <!-- GLOBAL HEADER -->
-  <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        
-        <!-- Brand -->
-        <div class="flex items-center space-x-3 cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-xl text-white shadow-inner">
-            <i data-lucide="shield-check" class="w-6 h-6"></i>
-          </div>
-          <div>
-            <h1 class="text-lg font-bold tracking-tight leading-tight">CampusPass</h1>
-            <p class="text-xs text-slate-400">Institutional Leave & Security Suite</p>
-          </div>
+  <header class="bg-indigo-900 text-white sticky top-0 z-40 shadow-md no-print">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center">
+          <i data-lucide="ticket-check" class="w-6 h-6"></i>
         </div>
-
-        <!-- Logged-in User Status & Logout -->
-        <div id="headerAuthArea" class="flex items-center space-x-3 hidden">
-          <div class="flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2"></span>
-            Role: <span id="currentRoleName" class="font-semibold text-white ml-1">Guest</span>
-          </div>
-          <button onclick="app.logout()" class="text-xs bg-red-600/80 hover:bg-red-600 text-white font-medium px-3.5 py-2 rounded-lg transition-colors flex items-center space-x-1.5 shadow-sm">
-            <i data-lucide="log-out" class="w-4 h-4"></i>
-            <span>Logout</span>
-          </button>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">SmartPass</h1>
+          <p class="text-xs text-indigo-200">RGUKT Outpass &amp; Leave System</p>
         </div>
+      </div>
+      <div id="headerAuthArea" class="hidden flex items-center space-x-3">
+        <span class="text-xs px-3 py-1 rounded-full bg-indigo-800 border border-indigo-600">
+          Role: <b id="currentRoleName">-</b>
+        </span>
+        <button onclick="app.logout()" class="text-xs bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg font-medium flex items-center space-x-1">
+          <i data-lucide="log-out" class="w-4 h-4"></i><span>Logout</span>
+        </button>
       </div>
     </div>
   </header>
 
-  <!-- MAIN CONTAINER -->
-  <main id="appContent" class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-    <!-- Dynamic view content rendered here -->
-  </main>
+  <main id="appContent" class="flex-grow max-w-6xl w-full mx-auto px-4 py-6"></main>
 
-  <!-- SYSTEM FOOTER -->
-  <footer class="bg-white border-t border-slate-200 py-4 text-xs text-slate-500">
-    <div class="max-w-7xl mx-auto px-4 text-center sm:flex sm:justify-between sm:items-center">
-      <p>&copy; 2026 CampusPass Security Management. Secure Session Enforced.</p>
-      <span class="text-emerald-600 font-medium">Database & Encryption Active</span>
-    </div>
+  <footer class="bg-white border-t border-slate-200 py-4 text-xs text-slate-500 text-center no-print">
+    &copy; 2026 SmartPass &middot; Rajiv Gandhi University of Knowledge Technologies
   </footer>
 
-  <!-- MODALS CONTAINER -->
   <div id="modalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div id="modalCard" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200 p-6 relative">
-      <!-- Dynamic Modal Content -->
-    </div>
+    <div id="modalCard" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6"></div>
   </div>
 
-  <!-- APPLICATION SCRIPT ENGINE -->
   <script>
-    const DB = {
-      users: {
-        'STU001': { id: 'STU001', name: 'Aarav Sharma', gender: 'Male', dept: 'Computer Science', email: 'aarav@college.edu', phone: '+91 98765 43210', photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
-        'STU002': { id: 'STU002', name: 'Ananya Reddy', gender: 'Female', dept: 'Electronics', email: 'ananya@college.edu', phone: '+91 98989 12345', photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80' }
-      },
-      requests: [
-        { id: 'REQ-2026-081', studentId: 'STU001', type: 'Short Outing', reason: 'Medical Checkup', destination: 'City Hospital', departureTime: '2026-10-26T14:00', returnTime: '2026-10-26T18:00', status: 'APPROVED', qrToken: 'CP-STU001-2026081-SEC' }
-      ]
-    };
+    /* ===================== DATA LAYER (localStorage demo) =====================
+       NOTE: For real deployment replace this with a backend (Firebase / Supabase / Node + DB)
+       so that "single-use" passes and role checks are enforced on the server. */
+    const KEY = 'smartpass_db_v1';
+    const SESSION_KEY = 'smartpass_session_v1';
 
-    class ApplicationController {
-      constructor() {
-        this.currentRole = null;
-        this.currentUser = null;
-      }
+    const BRANCHES = ['PUC-1','PUC-2','E1 - CSE','E1 - ECE','E1 - EEE','E1 - MECH','E1 - CIVIL','E1 - CHEM',
+                      'E2 - CSE','E2 - ECE','E2 - EEE','E2 - MECH','E2 - CIVIL','E2 - CHEM',
+                      'E3 - CSE','E3 - ECE','E3 - EEE','E3 - MECH','E3 - CIVIL','E3 - CHEM',
+                      'E4 - CSE','E4 - ECE','E4 - EEE','E4 - MECH','E4 - CIVIL','E4 - CHEM'];
+
+    function seed() {
+      return {
+        users: {
+          'N210001': { id:'N210001', name:'Aarav Sharma', gender:'Male', dept:'E3 - CSE', email:'n210001@rguktn.ac.in', phone:'9876543210' },
+          'N210002': { id:'N210002', name:'Ananya Reddy', gender:'Female', dept:'E3 - ECE', email:'n210002@rguktn.ac.in', phone:'9898912345' }
+        },
+        staff: {
+          'WARDEN-01': { id:'WARDEN-01', role:'CARETAKER', name:'Hostel Caretaker', pin:'1234' },
+          'GATE-01':   { id:'GATE-01',   role:'SECURITY',  name:'Main Gate Security', pin:'4321' }
+        },
+        requests: [],
+        scans: []
+      };
+    }
+    function loadDB() {
+      try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.users) return d; } catch(e) {}
+      const d = seed(); localStorage.setItem(KEY, JSON.stringify(d)); return d;
+    }
+    function saveDB() { localStorage.setItem(KEY, JSON.stringify(DB)); }
+    let DB = loadDB();
+
+    /* ===================== HELPERS ===================== */
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt = dt => dt ? new Date(dt).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }) : '-';
+    const localISO = d => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+    const initials = n => n.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const ID_RE = /^[NSROB]\d{6}$/;                          // RGUKT IDs e.g. N210001, S210045, R210112
+    const MAIL_RE = /^[a-z0-9._-]+@rgukt[a-z]*\.ac\.in$/i;   // e.g. n210001@rguktn.ac.in
+    const PHONE_RE = /^[6-9]\d{9}$/;
+
+    function genPassCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code;
+      do {
+        code = 'SP-' + Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+      } while (DB.requests.some(r => r.passCode === code));
+      return code;
+    }
+    // effective status (auto-expire approved passes after return time)
+    function statusOf(r) {
+      if (r.status === 'APPROVED' && new Date(r.returnTime) < new Date()) return 'EXPIRED';
+      return r.status;
+    }
+    const BADGE = {
+      PENDING:'bg-amber-100 text-amber-800', APPROVED:'bg-emerald-100 text-emerald-800',
+      REJECTED:'bg-red-100 text-red-800', CANCELLED:'bg-slate-200 text-slate-700',
+      USED:'bg-indigo-100 text-indigo-800', EXPIRED:'bg-orange-100 text-orange-800'
+    };
+    const badge = s => `<span class="px-2 py-1 rounded font-bold text-[11px] ${BADGE[s]||''}">${s}</span>`;
+
+    /* ===================== APP CONTROLLER ===================== */
+    class App {
+      constructor() { this.session = null; this.scanner = null; this.filter = 'PENDING'; this.q = ''; }
 
       init() {
-        this.renderLoginPortal();
-        lucide.createIcons();
+        // Restore session: user stays locked to the role they logged in with
+        try { this.session = JSON.parse(localStorage.getItem(SESSION_KEY)); } catch(e) {}
+        this.route();
       }
 
-      // ================= STRICT LOGIN PORTAL =================
-      renderLoginPortal() {
-        document.getElementById('headerAuthArea').classList.add('hidden');
-        const container = document.getElementById('appContent');
-        container.innerHTML = `
-          <div class="max-w-md mx-auto py-12">
-            <div class="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-              <div class="text-center mb-6">
-                <div class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow">
-                  <i data-lucide="shield-check" class="w-6 h-6"></i>
-                </div>
-                <h2 class="text-2xl font-bold text-slate-900">CampusPass Login</h2>
-                <p class="text-xs text-slate-500 mt-1">Enter your official institutional credentials.</p>
-              </div>
-
-              <!-- Role Tabs -->
-              <div class="flex border-b border-slate-200 mb-6 text-xs font-semibold">
-                <button onclick="app.switchLoginTab('student')" id="tabStudent" class="flex-1 pb-3 text-indigo-600 border-b-2 border-indigo-600">Student</button>
-                <button onclick="app.switchLoginTab('caretaker')" id="tabCaretaker" class="flex-1 pb-3 text-slate-400 border-b-2 border-transparent">Caretaker</button>
-                <button onclick="app.switchLoginTab('security')" id="tabSecurity" class="flex-1 pb-3 text-slate-400 border-b-2 border-transparent">Security Gate</button>
-              </div>
-
-              <!-- Student Login Form -->
-              <form id="formStudent" onsubmit="app.handleLogin(event, 'STUDENT')" class="space-y-4 text-xs">
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Full Name</label>
-                  <input type="text" required placeholder="Aarav Sharma" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">College ID Number</label>
-                  <input type="text" id="stuId" required placeholder="STU001 or STU002" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">College Email (@college.edu)</label>
-                  <input type="email" required placeholder="student@college.edu" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Mobile Number</label>
-                  <input type="tel" required placeholder="+91 98765 43210" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition shadow text-sm">
-                  Login as Student &rarr;
-                </button>
-              </form>
-
-              <!-- Caretaker Login Form -->
-              <form id="formCaretaker" onsubmit="app.handleLogin(event, 'CARETAKER')" class="space-y-4 text-xs hidden">
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Staff / Warden Name</label>
-                  <input type="text" required placeholder="Warden Office" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Staff ID Number</label>
-                  <input type="text" required placeholder="WARDEN-01" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Official Email (@college.edu)</label>
-                  <input type="email" required placeholder="warden@college.edu" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Mobile Number</label>
-                  <input type="tel" required placeholder="+91 98000 11111" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow text-sm">
-                  Login as Caretaker &rarr;
-                </button>
-              </form>
-
-              <!-- Security Login Form -->
-              <form id="formSecurity" onsubmit="app.handleLogin(event, 'SECURITY')" class="space-y-4 text-xs hidden">
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Security Officer Name</label>
-                  <input type="text" required placeholder="Guard Name" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Security Terminal ID</label>
-                  <input type="text" required placeholder="GATE-NORTH-01" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Mobile Number</label>
-                  <input type="tel" required placeholder="+91 97000 22222" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" />
-                </div>
-                <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition shadow text-sm">
-                  Open Security Gate Scanner &rarr;
-                </button>
-              </form>
-
-            </div>
-          </div>
-        `;
-        lucide.createIcons();
-      }
-
-      switchLoginTab(tab) {
-        document.getElementById('formStudent').classList.add('hidden');
-        document.getElementById('formCaretaker').classList.add('hidden');
-        document.getElementById('formSecurity').classList.add('hidden');
-        document.getElementById('tabStudent').className = 'flex-1 pb-3 text-slate-400 border-b-2 border-transparent';
-        document.getElementById('tabCaretaker').className = 'flex-1 pb-3 text-slate-400 border-b-2 border-transparent';
-        document.getElementById('tabSecurity').className = 'flex-1 pb-3 text-slate-400 border-b-2 border-transparent';
-
-        if (tab === 'student') {
-          document.getElementById('formStudent').classList.remove('hidden');
-          document.getElementById('tabStudent').className = 'flex-1 pb-3 text-indigo-600 border-b-2 border-indigo-600';
-        } else if (tab === 'caretaker') {
-          document.getElementById('formCaretaker').classList.remove('hidden');
-          document.getElementById('tabCaretaker').className = 'flex-1 pb-3 text-emerald-600 border-b-2 border-emerald-600';
-        } else {
-          document.getElementById('formSecurity').classList.remove('hidden');
-          document.getElementById('tabSecurity').className = 'flex-1 pb-3 text-slate-900 border-b-2 border-slate-900';
-        }
-      }
-
-      handleLogin(e, role) {
-        e.preventDefault();
-        this.currentRole = role;
-
-        if (role === 'STUDENT') {
-          const idInput = document.getElementById('stuId').value.trim().toUpperCase();
-          this.currentUser = DB.users[idInput] || {
-            id: idInput || 'STU999',
-            name: 'Registered Student',
-            gender: 'Male',
-            dept: 'Engineering',
-            email: 'student@college.edu',
-            phone: '+91 98765 43210',
-            photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80'
-          };
-          this.renderStudentDashboard();
-        } else if (role === 'CARETAKER') {
-          this.currentUser = { id: 'WARDEN-01', name: 'Warden Desk' };
-          this.renderCaretakerDashboard();
-        } else if (role === 'SECURITY') {
-          this.currentUser = { id: 'GATE-01', name: 'Security Terminal' };
-          this.renderSecurityDashboard();
-        }
-
+      route() {
+        if (!this.session) return this.renderLogin();
         document.getElementById('headerAuthArea').classList.remove('hidden');
-        document.getElementById('currentRoleName').innerText = role;
-        lucide.createIcons();
+        document.getElementById('currentRoleName').innerText = this.session.role;
+        if (this.session.role === 'STUDENT' && DB.users[this.session.id]) return this.renderStudent();
+        if (this.session.role === 'CARETAKER' && DB.staff[this.session.id]?.role === 'CARETAKER') return this.renderCaretaker();
+        if (this.session.role === 'SECURITY' && DB.staff[this.session.id]?.role === 'SECURITY') return this.renderSecurity();
+        this.logout();
       }
 
       logout() {
-        this.currentRole = null;
-        this.currentUser = null;
-        this.renderLoginPortal();
+        this.stopScanner();
+        localStorage.removeItem(SESSION_KEY);
+        this.session = null;
+        document.getElementById('headerAuthArea').classList.add('hidden');
+        this.renderLogin();
       }
 
-      // ================= STUDENT DASHBOARD =================
-      renderStudentDashboard() {
-        const student = this.currentUser;
-        const myRequests = DB.requests.filter(r => r.studentId === student.id);
-
+      /* ---------- LOGIN ---------- */
+      renderLogin() {
         document.getElementById('appContent').innerHTML = `
-          <div class="space-y-6">
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-              <div class="flex items-center space-x-4">
-                <img src="${student.photo}" class="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500" />
-                <div>
-                  <h2 class="text-xl font-bold text-slate-900">${student.name}</h2>
-                  <p class="text-xs text-slate-500">ID: ${student.id} | ${student.dept} | ${student.email}</p>
-                </div>
-              </div>
-              <button onclick="app.openNewRequestModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow transition">
-                + Apply for Outpass
-              </button>
+        <div class="max-w-md mx-auto py-8">
+          <div class="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+            <div class="text-center mb-6">
+              <div class="w-14 h-14 bg-indigo-700 text-white rounded-2xl flex items-center justify-center mx-auto mb-3"><i data-lucide="ticket-check" class="w-7 h-7"></i></div>
+              <h2 class="text-2xl font-bold">SmartPass Login</h2>
+              <p class="text-xs text-slate-500 mt-1">Use your official RGUKT credentials</p>
+            </div>
+            <div class="flex border-b border-slate-200 mb-5 text-xs font-semibold">
+              <button id="tabStudent" onclick="app.tab('student')" class="flex-1 pb-3 text-indigo-700 border-b-2 border-indigo-700">Student</button>
+              <button id="tabStaff" onclick="app.tab('staff')" class="flex-1 pb-3 text-slate-400 border-b-2 border-transparent">Caretaker / Security</button>
             </div>
 
-            <!-- Leave Table -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <h3 class="text-sm font-bold text-slate-900 mb-3">Your Outpass Records</h3>
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                  <thead class="bg-slate-50 text-slate-600 font-semibold uppercase">
-                    <tr>
-                      <th class="p-3">Ref</th>
-                      <th class="p-3">Type & Reason</th>
-                      <th class="p-3">Timings</th>
-                      <th class="p-3">Status</th>
-                      <th class="p-3 text-right">Ticket</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200">
-                    ${myRequests.length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-slate-400">No requests found.</td></tr>' : myRequests.map(r => `
-                      <tr>
-                        <td class="p-3 font-mono font-bold">${r.id}</td>
-                        <td class="p-3"><span class="font-bold">${r.type}</span><br>${r.reason}</td>
-                        <td class="p-3">${r.departureTime}</td>
-                        <td class="p-3"><span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-bold">${r.status}</span></td>
-                        <td class="p-3 text-right">
-                          <button onclick="app.showDigitalTicket('${r.id}')" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold hover:bg-indigo-100">View Ticket</button>
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
+            <form id="formStudent" onsubmit="app.loginStudent(event)" class="space-y-3 text-xs">
+              <div><label class="block font-semibold mb-1">Full Name</label><input id="sName" required class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="Aarav Sharma"></div>
+              <div><label class="block font-semibold mb-1">ID Number</label><input id="sId" required maxlength="7" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50 uppercase" placeholder="N210001"></div>
+              <div><label class="block font-semibold mb-1">College Email</label><input id="sMail" type="email" required class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="n210001@rguktn.ac.in"></div>
+              <div><label class="block font-semibold mb-1">Mobile Number</label><input id="sPhone" type="tel" required maxlength="10" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="9876543210"></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block font-semibold mb-1">Branch / Year</label>
+                  <select id="sDept" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50">${BRANCHES.map(b=>`<option>${b}</option>`).join('')}</select></div>
+                <div><label class="block font-semibold mb-1">Gender</label>
+                  <select id="sGender" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50"><option>Male</option><option>Female</option></select></div>
               </div>
-            </div>
+              <p class="text-[11px] text-slate-400">First time? Your profile is created automatically. Returning students must use the same email and mobile.</p>
+              <p id="sErr" class="text-red-600 font-semibold hidden"></p>
+              <button class="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-3 rounded-xl text-sm">Login as Student</button>
+            </form>
+
+            <form id="formStaff" onsubmit="app.loginStaff(event)" class="space-y-3 text-xs hidden">
+              <div><label class="block font-semibold mb-1">Staff ID</label><input id="tId" required class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50 uppercase" placeholder="WARDEN-01 or GATE-01"></div>
+              <div><label class="block font-semibold mb-1">PIN</label><input id="tPin" type="password" required maxlength="4" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="****"></div>
+              <p class="text-[11px] text-slate-400">Role is decided by the Staff ID. Demo: WARDEN-01 / 1234 &middot; GATE-01 / 4321</p>
+              <p id="tErr" class="text-red-600 font-semibold hidden"></p>
+              <button class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm">Login</button>
+            </form>
           </div>
-        `;
+        </div>`;
         lucide.createIcons();
       }
 
-      // ================= CARETAKER DASHBOARD =================
-      renderCaretakerDashboard() {
-        document.getElementById('appContent').innerHTML = `
-          <div class="space-y-6">
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <h2 class="text-lg font-bold text-slate-900">Caretaker / Warden Approval Desk</h2>
-              <p class="text-xs text-slate-500 mb-4">Review requests and manage campus departures.</p>
-              
-              <div class="space-y-2">
-                ${DB.requests.map(r => `
-                  <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-                    <div>
-                      <span class="font-bold text-slate-900">${r.studentId} - ${r.type}</span>
-                      <p class="text-slate-500">${r.reason} (${r.destination})</p>
-                    </div>
-                    <div>
-                      <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold">${r.status}</span>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-        `;
-        lucide.createIcons();
+      tab(t) {
+        const s = t === 'student';
+        document.getElementById('formStudent').classList.toggle('hidden', !s);
+        document.getElementById('formStaff').classList.toggle('hidden', s);
+        document.getElementById('tabStudent').className = 'flex-1 pb-3 border-b-2 ' + (s ? 'text-indigo-700 border-indigo-700' : 'text-slate-400 border-transparent');
+        document.getElementById('tabStaff').className = 'flex-1 pb-3 border-b-2 ' + (!s ? 'text-indigo-700 border-indigo-700' : 'text-slate-400 border-transparent');
       }
 
-      // ================= SECURITY GATE SCANNER =================
-      renderSecurityDashboard() {
-        document.getElementById('appContent').innerHTML = `
-          <div class="max-w-xl mx-auto space-y-6 py-6">
-            <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-md text-center">
-              <h2 class="text-lg font-bold">Security Gate Pass Scanner</h2>
-              <p class="text-xs text-slate-400 mt-1">Scan student QR token for atomic gate exit logging.</p>
-              <div class="mt-4 flex gap-2">
-                <input type="text" id="gateScanInput" placeholder="Enter QR Token e.g. CP-STU001-2026081-SEC" class="flex-grow p-3 text-xs rounded-xl bg-slate-800 text-white border border-slate-700 font-mono" />
-                <button onclick="alert('Ticket Verified and Exit Recorded!')" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-3 rounded-xl text-xs">Verify</button>
-              </div>
-            </div>
-          </div>
-        `;
-        lucide.createIcons();
-      }
+      showErr(id, msg) { const e = document.getElementById(id); e.innerText = msg; e.classList.remove('hidden'); }
 
-      openNewRequestModal() {
-        const modal = document.getElementById('modalCard');
-        modal.innerHTML = `
-          <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
-            <h3 class="text-base font-bold text-slate-800">Apply for Outpass</h3>
-            <button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button>
-          </div>
-          <form onsubmit="app.submitLeaveRequest(event)" class="space-y-3 text-xs">
-            <div><label class="block font-semibold mb-1">Type</label><select id="reqType" class="w-full p-2.5 border rounded-xl"><option>Short Outing</option><option>Long Leave</option></select></div>
-            <div><label class="block font-semibold mb-1">Reason</label><input id="reqReason" required class="w-full p-2.5 border rounded-xl" placeholder="Medical / Personal"/></div>
-            <div><label class="block font-semibold mb-1">Destination</label><input id="reqDest" required class="w-full p-2.5 border rounded-xl" placeholder="City address"/></div>
-            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl">Submit Request</button>
-          </form>
-        `;
-        document.getElementById('modalBackdrop').classList.remove('hidden');
-        lucide.createIcons();
-      }
-
-      submitLeaveRequest(e) {
+      loginStudent(e) {
         e.preventDefault();
-        DB.requests.unshift({
-          id: `REQ-2026-${Math.floor(100+Math.random()*900)}`,
-          studentId: this.currentUser.id,
-          type: document.getElementById('reqType').value,
-          reason: document.getElementById('reqReason').value,
-          destination: document.getElementById('reqDest').value,
-          departureTime: '2026-11-05T10:00',
-          returnTime: '2026-11-05T18:00',
-          status: 'APPROVED',
-          qrToken: `CP-${this.currentUser.id}-SEC`
-        });
-        this.closeModal();
-        this.renderStudentDashboard();
-        alert('Outpass submitted successfully!');
+        const name = sName.value.trim().replace(/\s+/g,' '), id = sId.value.trim().toUpperCase(),
+              mail = sMail.value.trim().toLowerCase(), phone = sPhone.value.trim();
+        if (!ID_RE.test(id)) return this.showErr('sErr', 'Invalid ID. Format example: N210001');
+        if (!MAIL_RE.test(mail)) return this.showErr('sErr', 'Use your official RGUKT email (e.g. n210001@rguktn.ac.in)');
+        if (!PHONE_RE.test(phone)) return this.showErr('sErr', 'Enter a valid 10-digit mobile number');
+        if (DB.staff[id]) return this.showErr('sErr', 'This ID belongs to staff. Use the Caretaker / Security tab.');
+        const u = DB.users[id];
+        if (u) {
+          if (u.email.toLowerCase() !== mail || u.phone !== phone) return this.showErr('sErr', 'Email or mobile does not match the registered profile.');
+        } else {
+          DB.users[id] = { id, name, gender: sGender.value, dept: sDept.value, email: mail, phone };
+          saveDB();
+        }
+        this.startSession('STUDENT', id);
       }
 
-      showDigitalTicket(reqId) {
-        const r = DB.requests.find(x => x.id === reqId);
-        const modal = document.getElementById('modalCard');
-        modal.innerHTML = `
-          <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
-            <h3 class="text-base font-bold">Digital Outpass Ticket</h3>
-            <button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button>
+      loginStaff(e) {
+        e.preventDefault();
+        const id = tId.value.trim().toUpperCase(), s = DB.staff[id];
+        if (!s || s.pin !== tPin.value) return this.showErr('tErr', 'Invalid Staff ID or PIN.');
+        this.startSession(s.role, id);
+      }
+
+      startSession(role, id) {
+        this.session = { role, id };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(this.session));
+        this.route();
+      }
+
+      // Guard: every dashboard checks it is being shown to the right role
+      guard(role) { if (!this.session || this.session.role !== role) { this.logout(); return false; } return true; }
+
+      /* ---------- STUDENT ---------- */
+      renderStudent() {
+        if (!this.guard('STUDENT')) return;
+        const u = DB.users[this.session.id];
+        const mine = DB.requests.filter(r => r.studentId === u.id).sort((a,b) => b.createdAt - a.createdAt);
+        const cnt = f => mine.filter(f).length;
+        const outings = cnt(r => r.type === 'Outing' && r.status === 'USED');
+        const leaves  = cnt(r => r.type === 'Long Leave' && r.status === 'USED');
+        const pending = cnt(r => r.status === 'PENDING');
+        const active = mine.find(r => statusOf(r) === 'APPROVED');
+        const stat = (label, val, color) => `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm"><p class="text-[11px] text-slate-500 font-semibold uppercase">${label}</p><p class="text-2xl font-bold ${color} mt-1">${val}</p></div>`;
+
+        document.getElementById('appContent').innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-4">
+              <div class="w-16 h-16 rounded-2xl bg-indigo-700 text-white flex items-center justify-center text-xl font-bold">${esc(initials(u.name))}</div>
+              <div>
+                <h2 class="text-xl font-bold">${esc(u.name)}</h2>
+                <p class="text-xs text-slate-500">ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p>
+                <p class="text-xs text-slate-500">${esc(u.email)} &middot; +91 ${esc(u.phone)}</p>
+              </div>
+            </div>
+            <button onclick="app.openRequest()" class="bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow">+ Request Outpass</button>
           </div>
-          <div class="bg-white border p-4 rounded-xl text-xs space-y-2">
-            <p class="font-bold text-sm">${r.id} - ${r.type}</p>
-            <p>Reason: ${r.reason}</p>
-            <p>Destination: ${r.destination}</p>
-            <div id="qrcode" class="flex justify-center my-3"></div>
-            <button onclick="window.print()" class="w-full bg-slate-900 text-white py-2 rounded-xl font-semibold">🖨️ Print / Save Ticket</button>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            ${stat('Outings Taken', outings, 'text-indigo-700')}
+            ${stat('Leaves Taken', leaves, 'text-emerald-700')}
+            ${stat('Total Requests', mine.length, 'text-slate-800')}
+            ${stat('Pending', pending, 'text-amber-600')}
           </div>
-        `;
+
+          ${active ? `<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-sm">
+            <div><p class="font-bold text-emerald-800">Active pass: ${esc(active.passCode)}</p><p class="text-xs text-emerald-700">${esc(active.type)} &middot; valid until ${fmt(active.returnTime)} &middot; one-time use</p></div>
+            <button onclick="app.showTicket('${active.id}')" class="bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-xl">Show QR</button></div>` : ''}
+
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <h3 class="text-sm font-bold mb-3">My Outpass History</h3>
+            <div class="overflow-x-auto"><table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Ref</th><th class="p-3">Type &amp; Reason</th><th class="p-3">Out / Return</th><th class="p-3">Status</th><th class="p-3 text-right">Action</th></tr></thead>
+              <tbody class="divide-y divide-slate-200">
+              ${mine.length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-slate-400">No requests yet.</td></tr>' : mine.map(r => {
+                const s = statusOf(r);
+                return `<tr>
+                  <td class="p-3 font-mono font-bold">${esc(r.id)}</td>
+                  <td class="p-3"><b>${esc(r.type)}</b><br>${esc(r.reason)} <span class="text-slate-400">&rarr; ${esc(r.destination)}</span>${r.remark ? `<br><span class="text-red-600">Remark: ${esc(r.remark)}</span>`:''}</td>
+                  <td class="p-3">${fmt(r.departureTime)}<br>${fmt(r.returnTime)}</td>
+                  <td class="p-3">${badge(s)}</td>
+                  <td class="p-3 text-right">
+                    ${s === 'APPROVED' ? `<button onclick="app.showTicket('${r.id}')" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">View Pass</button>` : ''}
+                    ${s === 'PENDING' ? `<button onclick="app.cancelRequest('${r.id}')" class="px-3 py-1 bg-red-50 text-red-700 rounded font-semibold">Cancel</button>` : ''}
+                  </td></tr>`; }).join('')}
+              </tbody></table></div>
+          </div>
+        </div>`;
+        lucide.createIcons();
+      }
+
+      openRequest() {
+        const u = DB.users[this.session.id];
+        const open = DB.requests.find(r => r.studentId === u.id && ['PENDING','APPROVED'].includes(statusOf(r)));
+        if (open) { alert('You already have an active request (' + open.id + '). Finish or cancel it before applying for a new one.'); return; }
+        const now = new Date(), later = new Date(now.getTime() + 4*3600*1000);
+        document.getElementById('modalCard').innerHTML = `
+          <div class="flex justify-between items-center pb-3 border-b mb-4"><h3 class="font-bold">Request Outpass</h3><button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+          <form onsubmit="app.submitRequest(event)" class="space-y-3 text-xs">
+            <div><label class="block font-semibold mb-1">Type</label>
+              <select id="rType" onchange="app.typeHint()" class="w-full p-2.5 border rounded-xl"><option>Outing</option><option>Long Leave</option></select>
+              <p id="rHint" class="text-[11px] text-slate-400 mt-1">Short outing from campus (same day).</p></div>
+            <div><label class="block font-semibold mb-1">Reason</label><input id="rReason" required maxlength="80" class="w-full p-2.5 border rounded-xl" placeholder="Medical / Shopping / Home / Personal"></div>
+            <div><label class="block font-semibold mb-1">Destination</label><input id="rDest" required maxlength="80" class="w-full p-2.5 border rounded-xl" placeholder="Place / city"></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="block font-semibold mb-1">Leaving</label><input id="rOut" type="datetime-local" required value="${localISO(now)}" class="w-full p-2.5 border rounded-xl"></div>
+              <div><label class="block font-semibold mb-1">Returning</label><input id="rIn" type="datetime-local" required value="${localISO(later)}" class="w-full p-2.5 border rounded-xl"></div>
+            </div>
+            <p id="rErr" class="text-red-600 font-semibold hidden"></p>
+            <button class="w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Submit Request</button>
+          </form>`;
         document.getElementById('modalBackdrop').classList.remove('hidden');
         lucide.createIcons();
-        setTimeout(() => new QRCode(document.getElementById('qrcode'), { text: r.qrToken, width: 90, height: 90 }), 50);
+      }
+      typeHint() { rHint.innerText = rType.value === 'Long Leave' ? 'Long leave can be requested any time - no advance application needed.' : 'Short outing from campus (same day).'; }
+
+      submitRequest(e) {
+        e.preventDefault();
+        const out = rOut.value, back = rIn.value;
+        if (new Date(back) <= new Date(out)) return this.showErr('rErr', 'Return time must be after leaving time.');
+        if (new Date(back) < new Date()) return this.showErr('rErr', 'Return time is already over.');
+        if (rType.value === 'Outing' && (new Date(back) - new Date(out)) > 24*3600*1000) return this.showErr('rErr', 'Outing cannot exceed 24 hours. Choose Long Leave.');
+        const seq = String(DB.requests.length + 1).padStart(4, '0');
+        DB.requests.push({
+          id: `REQ-${new Date().getFullYear()}-${seq}`, studentId: this.session.id, type: rType.value,
+          reason: rReason.value.trim(), destination: rDest.value.trim(), departureTime: out, returnTime: back,
+          status: 'PENDING', passCode: null, createdAt: Date.now()
+        });
+        saveDB(); this.closeModal(); this.renderStudent();
+      }
+
+      cancelRequest(id) {
+        if (!confirm('Cancel this request?')) return;
+        const r = DB.requests.find(x => x.id === id && x.studentId === this.session.id);
+        if (r && r.status === 'PENDING') { r.status = 'CANCELLED'; saveDB(); this.renderStudent(); }
+      }
+
+      showTicket(id) {
+        const r = DB.requests.find(x => x.id === id && x.studentId === this.session.id);
+        if (!r || statusOf(r) !== 'APPROVED') return;
+        const u = DB.users[r.studentId];
+        document.getElementById('modalCard').innerHTML = `
+          <div class="flex justify-between items-center pb-3 border-b mb-4 no-print"><h3 class="font-bold">SmartPass Digital Ticket</h3><button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+          <div class="border-2 border-dashed border-indigo-300 rounded-xl p-4 text-xs space-y-1 text-center">
+            <p class="font-bold text-sm text-indigo-800">RGUKT SmartPass</p>
+            <p><b>${esc(u.name)}</b> (${esc(u.id)}) &middot; ${esc(u.dept)}</p>
+            <p>${esc(r.type)} &middot; ${esc(r.reason)} &rarr; ${esc(r.destination)}</p>
+            <p>Out: ${fmt(r.departureTime)}<br>Return by: ${fmt(r.returnTime)}</p>
+            <div id="qrcode" class="flex justify-center my-3"></div>
+            <p class="text-[11px] text-slate-500">Pass ID (show to security if QR fails)</p>
+            <p class="font-mono text-2xl font-bold tracking-widest">${esc(r.passCode)}</p>
+            <p class="text-[11px] text-red-600 font-semibold">One-time use only. Becomes invalid after the gate scan.</p>
+          </div>
+          <button onclick="window.print()" class="no-print mt-3 w-full bg-slate-900 text-white py-2 rounded-xl font-semibold text-xs">Print / Save</button>`;
+        document.getElementById('modalBackdrop').classList.remove('hidden');
+        lucide.createIcons();
+        setTimeout(() => new QRCode(document.getElementById('qrcode'), { text: r.passCode, width: 150, height: 150 }), 30);
       }
 
       closeModal() { document.getElementById('modalBackdrop').classList.add('hidden'); }
+
+      /* ---------- CARETAKER ---------- */
+      renderCaretaker() {
+        if (!this.guard('CARETAKER')) return;
+        const all = DB.requests.slice().sort((a,b) => b.createdAt - a.createdAt);
+        const q = this.q.toLowerCase();
+        const list = all.filter(r => {
+          const u = DB.users[r.studentId] || {};
+          const st = statusOf(r);
+          const f = this.filter === 'ALL' || st === this.filter;
+          return f && (!q || r.studentId.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q) || (r.passCode||'').toLowerCase().includes(q));
+        });
+        const c = s => all.filter(r => statusOf(r) === s).length;
+        const tabBtn = (k, label) => `<button onclick="app.setFilter('${k}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${this.filter===k?'bg-indigo-700 text-white':'bg-slate-100 text-slate-600'}">${label}</button>`;
+
+        document.getElementById('appContent').innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <h2 class="text-lg font-bold">Caretaker Approval Desk</h2>
+            <p class="text-xs text-slate-500 mb-3">Pending: <b>${c('PENDING')}</b> &middot; Approved: <b>${c('APPROVED')}</b> &middot; Used: <b>${c('USED')}</b> &middot; Rejected: <b>${c('REJECTED')}</b></p>
+            <div class="flex flex-wrap gap-2 items-center">
+              ${tabBtn('PENDING','Pending')}${tabBtn('APPROVED','Approved')}${tabBtn('USED','Used')}${tabBtn('REJECTED','Rejected')}${tabBtn('ALL','All')}
+              <input id="cSearch" oninput="app.search(this.value)" value="${esc(this.q)}" placeholder="Search name / ID / pass code" class="ml-auto p-2 text-xs border rounded-xl w-56">
+            </div>
+          </div>
+          <div class="space-y-3">
+            ${list.length === 0 ? '<p class="text-center text-xs text-slate-400 py-8">No requests in this view.</p>' : list.map(r => {
+              const u = DB.users[r.studentId] || { name:'Unknown', dept:'-', phone:'-' }; const s = statusOf(r);
+              return `<div class="bg-white border border-slate-200 rounded-xl p-4 text-xs flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="font-bold text-sm">${esc(u.name)} <span class="text-slate-400 font-normal">(${esc(r.studentId)} &middot; ${esc(u.dept)})</span></p>
+                  <p><b>${esc(r.type)}</b> &middot; ${esc(r.reason)} &rarr; ${esc(r.destination)}</p>
+                  <p class="text-slate-500">${fmt(r.departureTime)} &ndash; ${fmt(r.returnTime)} &middot; +91 ${esc(u.phone)}</p>
+                  ${r.passCode ? `<p class="font-mono text-slate-600">Pass: ${esc(r.passCode)}</p>` : ''}
+                </div>
+                <div class="flex items-center gap-2">${badge(s)}
+                  ${s === 'PENDING' ? `<button onclick="app.decide('${r.id}',true)" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold">Approve</button>
+                  <button onclick="app.decide('${r.id}',false)" class="px-3 py-1.5 bg-red-600 text-white rounded-lg font-semibold">Reject</button>` : ''}
+                </div>
+              </div>`; }).join('')}
+          </div>
+        </div>`;
+        lucide.createIcons();
+        const el = document.getElementById('cSearch'); if (this.q) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      }
+      setFilter(f) { this.filter = f; this.renderCaretaker(); }
+      search(v) { this.q = v; this.renderCaretaker(); }
+
+      decide(id, ok) {
+        if (!this.guard('CARETAKER')) return;
+        const r = DB.requests.find(x => x.id === id);
+        if (!r || r.status !== 'PENDING') return;
+        if (ok) { r.status = 'APPROVED'; r.passCode = genPassCode(); }
+        else { const m = prompt('Reason for rejection (optional):'); if (m === null) return; r.status = 'REJECTED'; r.remark = m.trim(); }
+        r.decidedAt = Date.now(); r.decidedBy = this.session.id;
+        saveDB(); this.renderCaretaker();
+      }
+
+      /* ---------- SECURITY ---------- */
+      renderSecurity() {
+        if (!this.guard('SECURITY')) return;
+        const recent = DB.scans.slice(-6).reverse();
+        document.getElementById('appContent').innerHTML = `
+        <div class="max-w-xl mx-auto space-y-5">
+          <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-md">
+            <h2 class="text-lg font-bold text-center">Security Gate Scanner</h2>
+            <p class="text-xs text-slate-400 mt-1 text-center">Scan the QR or type the Pass ID (e.g. SP-AB12CD)</p>
+            <form onsubmit="app.verify(event)" class="mt-4 flex gap-2">
+              <input id="gateInput" required placeholder="SP-XXXXXX" class="flex-grow p-3 text-sm rounded-xl bg-slate-800 border border-slate-700 font-mono uppercase" autocomplete="off">
+              <button class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 rounded-xl text-sm">Verify</button>
+            </form>
+            <button onclick="app.startScanner()" class="mt-3 w-full text-xs bg-slate-700 hover:bg-slate-600 py-2 rounded-xl font-semibold">Scan with camera</button>
+            <div id="reader" class="mt-3 rounded-xl overflow-hidden"></div>
+          </div>
+          <div id="gateResult"></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 text-xs">
+            <h3 class="font-bold mb-2">Recent gate activity</h3>
+            ${recent.length === 0 ? '<p class="text-slate-400">No scans yet.</p>' : recent.map(s => `<div class="flex justify-between py-1 border-b last:border-0"><span class="font-mono">${esc(s.code)} &middot; ${esc(s.name||'-')}</span><span class="${s.result==='EXIT ALLOWED'?'text-emerald-600':'text-red-600'} font-semibold">${esc(s.result)} <span class="text-slate-400 font-normal">${fmt(s.time)}</span></span></div>`).join('')}
+          </div>
+        </div>`;
+        lucide.createIcons();
+      }
+
+      startScanner() {
+        if (typeof Html5Qrcode === 'undefined') return alert('Camera scanner library failed to load. Enter the Pass ID manually.');
+        this.stopScanner();
+        this.scanner = new Html5Qrcode('reader');
+        this.scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 220 }, txt => {
+          this.stopScanner(); gateInput.value = txt.trim().toUpperCase(); this.lookup(gateInput.value);
+        }).catch(() => alert('Could not access camera. Enter the Pass ID manually.'));
+      }
+      stopScanner() { if (this.scanner) { this.scanner.stop().then(() => this.scanner.clear()).catch(()=>{}); this.scanner = null; } }
+
+      verify(e) { e.preventDefault(); this.lookup(gateInput.value.trim().toUpperCase()); }
+
+      lookup(code) {
+        if (!this.guard('SECURITY')) return;
+        const r = DB.requests.find(x => x.passCode === code);
+        const box = document.getElementById('gateResult');
+        if (!r) { this.logScan(code, null, 'INVALID'); box.innerHTML = this.banner('red', 'INVALID PASS', 'No pass found with this ID.'); return this.renderRecentOnly(); }
+        const u = DB.users[r.studentId], s = statusOf(r);
+        let color = 'emerald', title = 'VALID PASS', note = 'Details match? Press "Allow Exit" - the pass will be invalidated.';
+        if (s === 'USED') { color = 'red'; title = 'ALREADY USED'; note = `Used at ${fmt(r.usedAt)}. Do NOT allow.`; }
+        else if (s === 'EXPIRED') { color = 'orange'; title = 'PASS EXPIRED'; note = `Valid only until ${fmt(r.returnTime)}.`; }
+        else if (s !== 'APPROVED') { color = 'red'; title = 'NOT VALID'; note = `Status: ${s}`; }
+        if (color !== 'emerald') this.logScan(code, u, title);
+        box.innerHTML = `
+          ${this.banner(color, title, note)}
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 mt-3 text-xs">
+            <div class="flex items-center gap-4 mb-3">
+              <div class="w-16 h-16 rounded-2xl bg-indigo-700 text-white flex items-center justify-center text-xl font-bold">${esc(initials(u.name))}</div>
+              <div><p class="text-base font-bold">${esc(u.name)}</p><p>ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p><p>+91 ${esc(u.phone)}</p><p>${esc(u.email)}</p></div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl">
+              <p><b>Type:</b> ${esc(r.type)}</p><p><b>Ref:</b> ${esc(r.id)}</p>
+              <p><b>Reason:</b> ${esc(r.reason)}</p><p><b>Destination:</b> ${esc(r.destination)}</p>
+              <p><b>Out:</b> ${fmt(r.departureTime)}</p><p><b>Return:</b> ${fmt(r.returnTime)}</p>
+            </div>
+            ${s === 'APPROVED' ? `<div class="flex gap-2 mt-3">
+              <button onclick="app.allowExit('${r.id}')" class="flex-1 bg-emerald-600 text-white font-bold py-2.5 rounded-xl">Allow Exit</button>
+              <button onclick="app.denyExit('${r.id}')" class="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl">Deny</button></div>` : ''}
+          </div>`;
+        this.renderRecentOnly();
+      }
+
+      banner(color, title, note) {
+        const map = { emerald:'bg-emerald-100 border-emerald-400 text-emerald-900', red:'bg-red-100 border-red-400 text-red-900', orange:'bg-orange-100 border-orange-400 text-orange-900' };
+        return `<div class="border-2 rounded-2xl p-4 text-center ${map[color]}"><p class="text-lg font-extrabold">${title}</p><p class="text-xs">${note}</p></div>`;
+      }
+
+      allowExit(id) {
+        if (!this.guard('SECURITY')) return;
+        const r = DB.requests.find(x => x.id === id);
+        if (!r || statusOf(r) !== 'APPROVED') return alert('Pass is no longer valid.');
+        r.status = 'USED'; r.usedAt = Date.now(); r.usedBy = this.session.id;
+        this.logScan(r.passCode, DB.users[r.studentId], 'EXIT ALLOWED');
+        this.lookup(r.passCode);
+      }
+      denyExit(id) {
+        const r = DB.requests.find(x => x.id === id);
+        this.logScan(r.passCode, DB.users[r.studentId], 'EXIT DENIED');
+        document.getElementById('gateResult').innerHTML = this.banner('red', 'EXIT DENIED', 'Pass remains unused. Contact the caretaker.');
+        this.renderRecentOnly();
+      }
+      logScan(code, u, result) { DB.scans.push({ code, name: u ? u.name : null, result, time: Date.now(), by: this.session.id }); saveDB(); }
+      renderRecentOnly() { const keep = document.getElementById('gateResult').innerHTML; this.renderSecurity(); document.getElementById('gateResult').innerHTML = keep; }
     }
 
-    const app = new ApplicationController();
-    window.onload = () => app.init();
+    const app = new App();
+    window.onload = () => { app.init(); lucide.createIcons(); };
   </script>
 </body>
 </html>
