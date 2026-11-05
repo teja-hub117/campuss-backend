@@ -11,40 +11,38 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     body { font-family: 'Inter', sans-serif; background:#f8fafc; color:#0f172a; }
-   
-  @media print { header, footer, .no-print { display:none !important; } #modalBackdrop { position:static; background:none; } }
-  <body class="bg-slate-50 min-h-screen">
- 
+    .btn { transition: background-color .15s, opacity .15s; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .rec-dot { animation: rec 1.2s ease-in-out infinite; }
+    @keyframes rec { 0%,100%{opacity:1} 50%{opacity:.25} }
+    @media print { header, footer, .no-print { display:none !important; } #modalBackdrop { position:static; background:none; } }
   </style>
 </head>
-   <!-- PASTE SPLASH SCREEN DIV HERE (Right after line 14) -->
+<body class="min-h-screen flex flex-col antialiased">
+
+  <!-- Splash screen (falls back to an icon if logo.png is missing) -->
   <div id="splash-screen" class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-opacity duration-700 ease-in-out">
     <div class="text-center p-6 flex flex-col items-center animate-pulse">
       <div class="w-32 h-32 mb-4 flex items-center justify-center rounded-2xl shadow-lg bg-white p-3 border border-gray-100">
-        <img src="logo.png" alt="Smart Pass Logo" class="w-full h-full object-contain" />
+        <img src="logo.png" alt="SmartPass Logo" class="w-full h-full object-contain" onerror="this.outerHTML='<span class=&quot;text-5xl&quot;>🎫</span>'" />
       </div>
-      <h1 class="text-2xl font-bold text-blue-900 tracking-wide">SMART PASS</h1>
-      <p class="text-sm font-medium text-gray-500 mt-1">Management App</p>
+      <h1 class="text-2xl font-bold text-indigo-900 tracking-wide">SMART PASS</h1>
+      <p class="text-sm font-medium text-gray-500 mt-1">Outpass &amp; Leave Management</p>
     </div>
   </div>
-<body class="min-h-screen flex flex-col antialiased">
 
   <header class="bg-indigo-900 text-white sticky top-0 z-40 shadow-md no-print">
     <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center">
-          <i data-lucide="ticket-check" class="w-6 h-6"></i>
-        </div>
+        <div class="w-10 h-10 rounded-xl bg-white text-indigo-900 flex items-center justify-center"><i data-lucide="ticket-check" class="w-6 h-6"></i></div>
         <div>
           <h1 class="text-lg font-bold leading-tight">SmartPass</h1>
           <p class="text-xs text-indigo-200">RGUKT Outpass &amp; Leave System</p>
         </div>
       </div>
       <div id="headerAuthArea" class="hidden flex items-center space-x-3">
-        <span class="text-xs px-3 py-1 rounded-full bg-indigo-800 border border-indigo-600">
-          Role: <b id="currentRoleName">-</b>
-        </span>
-        <button onclick="app.logout()" class="text-xs bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg font-medium flex items-center space-x-1">
+        <span class="text-xs px-3 py-1 rounded-full bg-indigo-800 border border-indigo-600">Role: <b id="currentRoleName">-</b></span>
+        <button onclick="app.logout()" class="btn text-xs bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg font-medium flex items-center space-x-1">
           <i data-lucide="log-out" class="w-4 h-4"></i><span>Logout</span>
         </button>
       </div>
@@ -58,15 +56,28 @@
   </footer>
 
   <div id="modalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div id="modalCard" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6"></div>
+    <div id="modalCard" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-6"></div>
   </div>
+  <div id="dlg" class="fixed inset-0 bg-slate-900/60 z-[60] hidden flex items-center justify-center p-4"></div>
+  <div id="toasts" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] space-y-2 w-[92%] max-w-sm"></div>
 
   <script>
-    /* ===================== DATA LAYER (localStorage demo) =====================
-       NOTE: For real deployment replace this with a backend (Firebase / Supabase / Node + DB)
-       so that "single-use" passes and role checks are enforced on the server. */
-    const KEY = 'smartpass_db_v1';
-    const SESSION_KEY = 'smartpass_session_v1';
+    /* ========================================================================
+       CONFIG
+       ------------------------------------------------------------------------
+       API_BASE : set to your Express/Supabase backend URL (e.g. 'https://xyz.onrender.com').
+                  When set, verification logs and call recordings are also sent to it.
+                  Leave '' to run fully in the browser (demo mode, data in localStorage/IndexedDB).
+       JITSI    : video-call server. meet.jit.si is fine for demos; for production use your own
+                  Jitsi server or JaaS because the public server limits embedded calls.
+       ======================================================================== */
+    const API_BASE = '';
+    const JITSI = 'meet.jit.si';
+    const REQUIRE_RECORDING = true;   // a verification cannot be saved without a recording
+
+    /* ===================== DATA LAYER ===================== */
+    const KEY = 'smartpass_db_v2';
+    const SESSION_KEY = 'smartpass_session_v2';
 
     const BRANCHES = ['PUC-1','PUC-2','E1 - CSE','E1 - ECE','E1 - EEE','E1 - MECH','E1 - CIVIL','E1 - CHEM',
                       'E2 - CSE','E2 - ECE','E2 - EEE','E2 - MECH','E2 - CIVIL','E2 - CHEM',
@@ -76,84 +87,194 @@
     function seed() {
       return {
         users: {
-          'N210001': { id:'N210001', name:'Aarav Sharma', gender:'Male', dept:'E3 - CSE', email:'n210001@rguktn.ac.in', phone:'9876543210' },
-          'N210002': { id:'N210002', name:'Ananya Reddy', gender:'Female', dept:'E3 - ECE', email:'n210002@rguktn.ac.in', phone:'9898912345' }
+          'N210001': { id:'N210001', name:'Aarav Sharma', gender:'Male', dept:'E3 - CSE', email:'n210001@rguktn.ac.in', phone:'9876543210',
+                       family:[{ id:'F1', name:'Rajesh Sharma', relation:'Father', phone:'9811122334', occupation:'Engineer', address:'Bengaluru' }] },
+          'N210002': { id:'N210002', name:'Ananya Reddy', gender:'Female', dept:'E3 - ECE', email:'n210002@rguktn.ac.in', phone:'9898912345',
+                       family:[{ id:'F2', name:'Vikram Reddy', relation:'Father', phone:'9440098765', occupation:'Businessman', address:'Hyderabad' }] }
         },
+        // DEMO ONLY: PINs in client code are not secure. Move staff auth to the backend (hashed passwords / Supabase Auth).
         staff: {
-          'WARDEN-01': { id:'WARDEN-01', role:'CARETAKER', name:'Hostel Caretaker', pin:'1234' },
-          'GATE-01':   { id:'GATE-01',   role:'SECURITY',  name:'Main Gate Security', pin:'4321' }
+          'WARDEN-01':  { id:'WARDEN-01',  role:'CARETAKER', name:'Hostel Caretaker',   pin:'1234' },
+          'GATE-01':    { id:'GATE-01',    role:'SECURITY',  name:'Main Gate Security', pin:'4321' },
+          'FACULTY-01': { id:'FACULTY-01', role:'FACULTY',   name:'Dean - Student Affairs', pin:'9999' }
         },
-        requests: [],
-        scans: []
+        requests: [], scans: [], recordings: [], audit: []
       };
     }
     function loadDB() {
-      try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.users) return d; } catch(e) {}
+      try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.users) { d.recordings = d.recordings||[]; d.audit = d.audit||[]; return d; } } catch(e) {}
       const d = seed(); localStorage.setItem(KEY, JSON.stringify(d)); return d;
     }
     function saveDB() { localStorage.setItem(KEY, JSON.stringify(DB)); }
     let DB = loadDB();
 
+    async function api(path, opts) {
+      if (!API_BASE) return null;
+      try { const r = await fetch(API_BASE + path, opts); return await r.json(); }
+      catch (e) { console.warn('API unreachable:', path, e); return null; }
+    }
+
+    /* Call recordings are large, so the video/audio blobs live in IndexedDB; metadata lives in DB.recordings */
+    const IDB = {
+      db: null,
+      open() { return new Promise((res, rej) => {
+        if (this.db) return res(this.db);
+        const q = indexedDB.open('smartpass_recordings', 1);
+        q.onupgradeneeded = () => q.result.createObjectStore('rec');
+        q.onsuccess = () => { this.db = q.result; res(this.db); };
+        q.onerror = () => rej(q.error);
+      }); },
+      async put(k, v) { const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('rec','readwrite'); t.objectStore('rec').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+      async get(k) { const db = await this.open(); return new Promise((res, rej) => { const q = db.transaction('rec').objectStore('rec').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+    };
+
     /* ===================== HELPERS ===================== */
+    const $ = id => document.getElementById(id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const fmt = dt => dt ? new Date(dt).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }) : '-';
     const localISO = d => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
     const initials = n => n.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    const ID_RE = /^[NSROB]\d{6}$/;                          // RGUKT IDs e.g. N210001, S210045, R210112
-    const MAIL_RE = /^[a-z0-9._-]+@rgukt[a-z]*\.ac\.in$/i;   // e.g. n210001@rguktn.ac.in
+    const ID_RE = /^[NSROB]\d{6}$/;
+    const MAIL_RE = /^[a-z0-9._-]+@rgukt[a-z]*\.ac\.in$/i;
     const PHONE_RE = /^[6-9]\d{9}$/;
+    const isFemale = u => u && u.gender === 'Female';
+    const taken = r => r.status === 'USED' || r.status === 'RETURNED';
+    const mb = b => (b / 1048576).toFixed(1) + ' MB';
 
+    function toast(msg, type = 'info') {
+      const c = { info:'bg-slate-900', ok:'bg-emerald-600', err:'bg-red-600', warn:'bg-amber-600' }[type];
+      const el = document.createElement('div');
+      el.className = `${c} text-white text-xs font-medium px-4 py-3 rounded-xl shadow-lg`;
+      el.textContent = msg; $('toasts').appendChild(el);
+      setTimeout(() => el.remove(), 3800);
+    }
+    /* Promise-based replacement for confirm()/prompt() */
+    function ask({ title, msg = '', input = null, ok = 'Confirm', danger = false }) {
+      return new Promise(resolve => {
+        const d = $('dlg');
+        d.innerHTML = `<div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5">
+          <h3 class="font-bold mb-1">${esc(title)}</h3><p class="text-xs text-slate-500 mb-3">${esc(msg)}</p>
+          ${input !== null ? `<textarea id="dlgIn" rows="3" class="w-full p-2.5 border rounded-xl text-xs" placeholder="${esc(input)}"></textarea>` : ''}
+          <div class="flex gap-2 mt-3"><button id="dlgNo" class="btn flex-1 py-2 rounded-xl bg-slate-100 text-xs font-semibold">Cancel</button>
+          <button id="dlgYes" class="btn flex-1 py-2 rounded-xl text-white text-xs font-semibold ${danger ? 'bg-red-600' : 'bg-indigo-700'}">${esc(ok)}</button></div></div>`;
+        d.classList.remove('hidden');
+        const done = v => { d.classList.add('hidden'); d.innerHTML = ''; resolve(v); };
+        $('dlgNo').onclick = () => done(null);
+        $('dlgYes').onclick = () => done(input !== null ? $('dlgIn').value.trim() : true);
+      });
+    }
+    function log(action, details) {
+      DB.audit.push({ t: Date.now(), by: app.session ? `${app.session.role}:${app.session.id}` : 'system', action, details });
+      if (DB.audit.length > 1000) DB.audit.shift();
+      saveDB();
+    }
     function genPassCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code;
-      do {
-        code = 'SP-' + Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
-      } while (DB.requests.some(r => r.passCode === code));
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let code;
+      do { code = 'SP-' + Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join(''); }
+      while (DB.requests.some(r => r.passCode === code));
       return code;
     }
-    // effective status (auto-expire approved passes after return time)
+    /* effective status: approved passes expire after return time; outside students become OVERDUE */
     function statusOf(r) {
-      if (r.status === 'APPROVED' && new Date(r.returnTime) < new Date()) return 'EXPIRED';
+      const late = new Date(r.returnTime) < new Date();
+      if (r.status === 'APPROVED' && late) return 'EXPIRED';
+      if (r.status === 'USED' && late) return 'OVERDUE';
       return r.status;
     }
     const BADGE = {
-      PENDING:'bg-amber-100 text-amber-800', APPROVED:'bg-emerald-100 text-emerald-800',
-      REJECTED:'bg-red-100 text-red-800', CANCELLED:'bg-slate-200 text-slate-700',
-      USED:'bg-indigo-100 text-indigo-800', EXPIRED:'bg-orange-100 text-orange-800'
+      PENDING:'bg-amber-100 text-amber-800', APPROVED:'bg-emerald-100 text-emerald-800', REJECTED:'bg-red-100 text-red-800',
+      CANCELLED:'bg-slate-200 text-slate-700', USED:'bg-indigo-100 text-indigo-800', EXPIRED:'bg-orange-100 text-orange-800',
+      RETURNED:'bg-teal-100 text-teal-800', OVERDUE:'bg-red-600 text-white'
     };
-    const badge = s => `<span class="px-2 py-1 rounded font-bold text-[11px] ${BADGE[s]||''}">${s}</span>`;
+    const LABEL = { USED:'OUTSIDE' };
+    const badge = s => `<span class="px-2 py-1 rounded font-bold text-[11px] ${BADGE[s]||''}">${LABEL[s]||s}</span>`;
+    const stat = (label, val, color = 'text-slate-800', sub = '') => `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm"><p class="text-[11px] text-slate-500 font-semibold uppercase">${label}</p><p class="text-2xl font-bold ${color} mt-1">${val}</p>${sub ? `<p class="text-[10px] text-slate-400">${sub}</p>` : ''}</div>`;
+    function openModal(html, wide = false) {
+      $('modalCard').className = `bg-white rounded-2xl shadow-2xl w-full max-h-[92vh] overflow-y-auto p-6 ${wide ? 'max-w-3xl' : 'max-w-lg'}`;
+      $('modalCard').innerHTML = html; $('modalBackdrop').classList.remove('hidden'); lucide.createIcons();
+    }
+    const modalHead = t => `<div class="flex justify-between items-center pb-3 border-b mb-4"><h3 class="font-bold">${t}</h3><button onclick="app.closeModal()" aria-label="Close"><i data-lucide="x" class="w-5 h-5"></i></button></div>`;
+
+    /* Verification rules (single source of truth):
+       - Female students: VIDEO call is mandatory.
+       - Male students: PHONE call (or video) is mandatory.
+       - Every call must be recorded and the guardian must confirm. */
+    const needsVideo = u => isFemale(u);
+    function canApprove(r) {
+      const u = DB.users[r.studentId], v = r.verification;
+      if (!v || v.outcome !== 'CONFIRMED') return false;
+      if (needsVideo(u) && v.type !== 'video') return false;
+      return true;
+    }
+
+    /* ===================== CALL RECORDER ===================== */
+    const Rec = {
+      mr: null, chunks: [], streams: [], ctx: null, active: false,
+      async start(kind) {
+        let out;
+        if (kind === 'video') {
+          // Records this browser tab (the Jitsi call) + caretaker microphone. Pick "This tab" in the browser prompt.
+          const disp = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true, preferCurrentTab:true });
+          this.streams.push(disp);
+          let mic = null; try { mic = await navigator.mediaDevices.getUserMedia({ audio:true }); this.streams.push(mic); } catch(e) {}
+          this.ctx = new AudioContext(); const dest = this.ctx.createMediaStreamDestination();
+          [disp, mic].forEach(s => { if (s && s.getAudioTracks().length) this.ctx.createMediaStreamSource(new MediaStream(s.getAudioTracks())).connect(dest); });
+          out = new MediaStream([...disp.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+        } else {
+          // Phone call: put the call on speaker; the microphone records both sides.
+          const mic = await navigator.mediaDevices.getUserMedia({ audio:true }); this.streams.push(mic); out = mic;
+        }
+        const types = kind === 'video' ? ['video/webm;codecs=vp8,opus','video/webm'] : ['audio/webm;codecs=opus','audio/webm'];
+        const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+        this.chunks = []; this.mr = new MediaRecorder(out, mime ? { mimeType: mime } : {});
+        this.mr.ondataavailable = e => { if (e.data.size) this.chunks.push(e.data); };
+        this.mr.start(1000); this.active = true;
+      },
+      cleanup() { this.streams.forEach(s => s.getTracks().forEach(t => t.stop())); this.streams = []; if (this.ctx) { this.ctx.close(); this.ctx = null; } this.active = false; },
+      stop() { return new Promise(res => {
+        this.mr.onstop = () => { const blob = new Blob(this.chunks, { type: this.mr.mimeType }); this.cleanup(); res(blob); };
+        this.mr.stop();
+      }); },
+      discard() { try { if (this.mr && this.mr.state !== 'inactive') { this.mr.onstop = null; this.mr.stop(); } } catch(e) {} this.cleanup(); }
+    };
 
     /* ===================== APP CONTROLLER ===================== */
     class App {
-      constructor() { this.session = null; this.scanner = null; this.filter = 'PENDING'; this.q = ''; }
+      constructor() { this.session = null; this.scanner = null; this.filter = 'PENDING'; this.q = ''; this.hf = 'ALL'; this.ft = 'overview'; this.vf = null; }
 
       init() {
-        // Restore session: user stays locked to the role they logged in with
         try { this.session = JSON.parse(localStorage.getItem(SESSION_KEY)); } catch(e) {}
         this.route();
       }
-
       route() {
         if (!this.session) return this.renderLogin();
-        document.getElementById('headerAuthArea').classList.remove('hidden');
-        document.getElementById('currentRoleName').innerText = this.session.role;
-        if (this.session.role === 'STUDENT' && DB.users[this.session.id]) return this.renderStudent();
-        if (this.session.role === 'CARETAKER' && DB.staff[this.session.id]?.role === 'CARETAKER') return this.renderCaretaker();
-        if (this.session.role === 'SECURITY' && DB.staff[this.session.id]?.role === 'SECURITY') return this.renderSecurity();
+        $('headerAuthArea').classList.remove('hidden');
+        $('currentRoleName').innerText = this.session.role;
+        const s = this.session, st = DB.staff[s.id];
+        if (s.role === 'STUDENT' && DB.users[s.id]) return this.renderStudent();
+        if (s.role === 'PARENT' && DB.users[s.id]) return this.renderParent();
+        if (s.role === 'CARETAKER' && st?.role === 'CARETAKER') return this.renderCaretaker();
+        if (s.role === 'SECURITY' && st?.role === 'SECURITY') return this.renderSecurity();
+        if (s.role === 'FACULTY' && st?.role === 'FACULTY') return this.renderFaculty();
         this.logout();
       }
-
       logout() {
-        this.stopScanner();
-        localStorage.removeItem(SESSION_KEY);
-        this.session = null;
-        document.getElementById('headerAuthArea').classList.add('hidden');
-        this.renderLogin();
+        this.stopScanner(); this.closeModal();
+        if (this.session) log('LOGOUT', this.session.id);
+        localStorage.removeItem(SESSION_KEY); this.session = null;
+        $('headerAuthArea').classList.add('hidden'); this.renderLogin();
       }
+      guard(role) { if (!this.session || this.session.role !== role) { this.logout(); return false; } return true; }
+      startSession(role, id) {
+        this.session = { role, id }; localStorage.setItem(SESSION_KEY, JSON.stringify(this.session));
+        log('LOGIN', id); this.route();
+      }
+      showErr(id, msg) { const e = $(id); e.innerText = msg; e.classList.remove('hidden'); }
 
       /* ---------- LOGIN ---------- */
       renderLogin() {
-        document.getElementById('appContent').innerHTML = `
+        const inp = 'w-full p-3 rounded-xl border border-slate-300 bg-slate-50';
+        $('appContent').innerHTML = `
         <div class="max-w-md mx-auto py-8">
           <div class="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
             <div class="text-center mb-6">
@@ -162,66 +283,69 @@
               <p class="text-xs text-slate-500 mt-1">Use your official RGUKT credentials</p>
             </div>
             <div class="flex border-b border-slate-200 mb-5 text-xs font-semibold">
-              <button id="tabStudent" onclick="app.tab('student')" class="flex-1 pb-3 text-indigo-700 border-b-2 border-indigo-700">Student</button>
-              <button id="tabStaff" onclick="app.tab('staff')" class="flex-1 pb-3 text-slate-400 border-b-2 border-transparent">Caretaker / Security</button>
+              <button id="tabStudent" onclick="app.tab('student')" class="flex-1 pb-3">Student</button>
+              <button id="tabParent" onclick="app.tab('parent')" class="flex-1 pb-3">Parent</button>
+              <button id="tabStaff" onclick="app.tab('staff')" class="flex-1 pb-3">Staff</button>
             </div>
 
             <form id="formStudent" onsubmit="app.loginStudent(event)" class="space-y-3 text-xs">
-              <div><label class="block font-semibold mb-1">Full Name</label><input id="sName" required class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="Aarav Sharma"></div>
-              <div><label class="block font-semibold mb-1">ID Number</label><input id="sId" required maxlength="7" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50 uppercase" placeholder="N210001"></div>
-              <div><label class="block font-semibold mb-1">College Email</label><input id="sMail" type="email" required class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="n210001@rguktn.ac.in"></div>
-              <div><label class="block font-semibold mb-1">Mobile Number</label><input id="sPhone" type="tel" required maxlength="10" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="9876543210"></div>
+              <div><label class="block font-semibold mb-1">Full Name</label><input id="sName" required class="${inp}" placeholder="Aarav Sharma"></div>
+              <div><label class="block font-semibold mb-1">ID Number</label><input id="sId" required maxlength="7" class="${inp} uppercase" placeholder="N210001"></div>
+              <div><label class="block font-semibold mb-1">College Email</label><input id="sMail" type="email" required class="${inp}" placeholder="n210001@rguktn.ac.in"></div>
+              <div><label class="block font-semibold mb-1">Mobile Number</label><input id="sPhone" type="tel" required maxlength="10" class="${inp}" placeholder="9876543210"></div>
               <div class="grid grid-cols-2 gap-3">
-                <div><label class="block font-semibold mb-1">Branch / Year</label>
-                  <select id="sDept" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50">${BRANCHES.map(b=>`<option>${b}</option>`).join('')}</select></div>
-                <div><label class="block font-semibold mb-1">Gender</label>
-                  <select id="sGender" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50"><option>Male</option><option>Female</option></select></div>
+                <div><label class="block font-semibold mb-1">Branch / Year</label><select id="sDept" class="${inp}">${BRANCHES.map(b=>`<option>${b}</option>`).join('')}</select></div>
+                <div><label class="block font-semibold mb-1">Gender</label><select id="sGender" class="${inp}"><option>Male</option><option>Female</option></select></div>
               </div>
               <p class="text-[11px] text-slate-400">First time? Your profile is created automatically. Returning students must use the same email and mobile.</p>
               <p id="sErr" class="text-red-600 font-semibold hidden"></p>
-              <button class="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-3 rounded-xl text-sm">Login as Student</button>
+              <button class="btn w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-3 rounded-xl text-sm">Login as Student</button>
+            </form>
+
+            <form id="formParent" onsubmit="app.loginParent(event)" class="space-y-3 text-xs hidden">
+              <div class="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl p-3 text-[11px]">Parents log in with their ward's registered details. You will get a read-only view of leave and outing records.</div>
+              <div><label class="block font-semibold mb-1">Student ID Number</label><input id="pId" required maxlength="7" class="${inp} uppercase" placeholder="N210001"></div>
+              <div><label class="block font-semibold mb-1">Student's Registered Mobile</label><input id="pPhone" type="tel" required maxlength="10" class="${inp}" placeholder="9876543210"></div>
+              <div><label class="block font-semibold mb-1">Student's College Email</label><input id="pMail" type="email" required class="${inp}" placeholder="n210001@rguktn.ac.in"></div>
+              <p id="pErr" class="text-red-600 font-semibold hidden"></p>
+              <button class="btn w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl text-sm">Login as Parent</button>
             </form>
 
             <form id="formStaff" onsubmit="app.loginStaff(event)" class="space-y-3 text-xs hidden">
-              <div><label class="block font-semibold mb-1">Staff ID</label><input id="tId" required class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50 uppercase" placeholder="WARDEN-01 or GATE-01"></div>
-              <div><label class="block font-semibold mb-1">PIN</label><input id="tPin" type="password" required maxlength="4" class="w-full p-3 rounded-xl border border-slate-300 bg-slate-50" placeholder="****"></div>
-              <p class="text-[11px] text-slate-400">Role is decided by the Staff ID. Demo: WARDEN-01 / 1234 &middot; GATE-01 / 4321</p>
+              <div><label class="block font-semibold mb-1">Staff ID</label><input id="tId" required class="${inp} uppercase" placeholder="WARDEN-01 / GATE-01 / FACULTY-01"></div>
+              <div><label class="block font-semibold mb-1">PIN</label><input id="tPin" type="password" required maxlength="4" class="${inp}" placeholder="****"></div>
+              <p class="text-[11px] text-slate-400">Role is decided by the Staff ID. Demo: WARDEN-01 / 1234 &middot; GATE-01 / 4321 &middot; FACULTY-01 / 9999</p>
               <p id="tErr" class="text-red-600 font-semibold hidden"></p>
-              <button class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm">Login</button>
+              <button class="btn w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm">Login</button>
             </form>
           </div>
         </div>`;
-        lucide.createIcons();
+        this.tab('student'); lucide.createIcons();
       }
-
       tab(t) {
-        const s = t === 'student';
-        document.getElementById('formStudent').classList.toggle('hidden', !s);
-        document.getElementById('formStaff').classList.toggle('hidden', s);
-        document.getElementById('tabStudent').className = 'flex-1 pb-3 border-b-2 ' + (s ? 'text-indigo-700 border-indigo-700' : 'text-slate-400 border-transparent');
-        document.getElementById('tabStaff').className = 'flex-1 pb-3 border-b-2 ' + (!s ? 'text-indigo-700 border-indigo-700' : 'text-slate-400 border-transparent');
+        ['student','parent','staff'].forEach(k => {
+          $('form' + k[0].toUpperCase() + k.slice(1)).classList.toggle('hidden', k !== t);
+          $('tab' + k[0].toUpperCase() + k.slice(1)).className = 'flex-1 pb-3 border-b-2 ' + (k === t ? 'text-indigo-700 border-indigo-700' : 'text-slate-400 border-transparent');
+        });
       }
-
-      showErr(id, msg) { const e = document.getElementById(id); e.innerText = msg; e.classList.remove('hidden'); }
-
       loginStudent(e) {
         e.preventDefault();
-        const name = sName.value.trim().replace(/\s+/g,' '), id = sId.value.trim().toUpperCase(),
-              mail = sMail.value.trim().toLowerCase(), phone = sPhone.value.trim();
+        const name = sName.value.trim().replace(/\s+/g,' '), id = sId.value.trim().toUpperCase(), mail = sMail.value.trim().toLowerCase(), phone = sPhone.value.trim();
         if (!ID_RE.test(id)) return this.showErr('sErr', 'Invalid ID. Format example: N210001');
         if (!MAIL_RE.test(mail)) return this.showErr('sErr', 'Use your official RGUKT email (e.g. n210001@rguktn.ac.in)');
         if (!PHONE_RE.test(phone)) return this.showErr('sErr', 'Enter a valid 10-digit mobile number');
-        if (DB.staff[id]) return this.showErr('sErr', 'This ID belongs to staff. Use the Caretaker / Security tab.');
+        if (DB.staff[id]) return this.showErr('sErr', 'This ID belongs to staff. Use the Staff tab.');
         const u = DB.users[id];
-        if (u) {
-          if (u.email.toLowerCase() !== mail || u.phone !== phone) return this.showErr('sErr', 'Email or mobile does not match the registered profile.');
-        } else {
-          DB.users[id] = { id, name, gender: sGender.value, dept: sDept.value, email: mail, phone };
-          saveDB();
-        }
+        if (u) { if (u.email.toLowerCase() !== mail || u.phone !== phone) return this.showErr('sErr', 'Email or mobile does not match the registered profile.'); }
+        else { DB.users[id] = { id, name, gender: sGender.value, dept: sDept.value, email: mail, phone, family: [] }; saveDB(); log('STUDENT_REGISTERED', id); }
         this.startSession('STUDENT', id);
       }
-
+      loginParent(e) {
+        e.preventDefault();
+        const id = pId.value.trim().toUpperCase(), phone = pPhone.value.trim(), mail = pMail.value.trim().toLowerCase(), u = DB.users[id];
+        if (!u || u.phone !== phone || u.email.toLowerCase() !== mail) return this.showErr('pErr', 'Details do not match any registered student.');
+        this.startSession('PARENT', id);
+      }
       loginStaff(e) {
         e.preventDefault();
         const id = tId.value.trim().toUpperCase(), s = DB.staff[id];
@@ -229,82 +353,12 @@
         this.startSession(s.role, id);
       }
 
-      startSession(role, id) {
-        this.session = { role, id };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(this.session));
-        this.route();
-      }
-
-      // Guard: every dashboard checks it is being shown to the right role
-      guard(role) { if (!this.session || this.session.role !== role) { this.logout(); return false; } return true; }
-
-      /* ---------- STUDENT ---------- */
-      renderStudent() {
-        if (!this.guard('STUDENT')) return;
-        const u = DB.users[this.session.id];
-        const mine = DB.requests.filter(r => r.studentId === u.id).sort((a,b) => b.createdAt - a.createdAt);
-        const cnt = f => mine.filter(f).length;
-        const outings = cnt(r => r.type === 'Outing' && r.status === 'USED');
-        const leaves  = cnt(r => r.type === 'Long Leave' && r.status === 'USED');
-        const pending = cnt(r => r.status === 'PENDING');
-        const active = mine.find(r => statusOf(r) === 'APPROVED');
-        const stat = (label, val, color) => `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm"><p class="text-[11px] text-slate-500 font-semibold uppercase">${label}</p><p class="text-2xl font-bold ${color} mt-1">${val}</p></div>`;
-
-        document.getElementById('appContent').innerHTML = `
-        <div class="space-y-5">
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center space-x-4">
-              <div class="w-16 h-16 rounded-2xl bg-indigo-700 text-white flex items-center justify-center text-xl font-bold">${esc(initials(u.name))}</div>
-              <div>
-                <h2 class="text-xl font-bold">${esc(u.name)}</h2>
-                <p class="text-xs text-slate-500">ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p>
-                <p class="text-xs text-slate-500">${esc(u.email)} &middot; +91 ${esc(u.phone)}</p>
-              </div>
-            </div>
-            <button onclick="app.openRequest()" class="bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow">+ Request Outpass</button>
-          </div>
-
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            ${stat('Outings Taken', outings, 'text-indigo-700')}
-            ${stat('Leaves Taken', leaves, 'text-emerald-700')}
-            ${stat('Total Requests', mine.length, 'text-slate-800')}
-            ${stat('Pending', pending, 'text-amber-600')}
-          </div>
-
-          ${active ? `<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-sm">
-            <div><p class="font-bold text-emerald-800">Active pass: ${esc(active.passCode)}</p><p class="text-xs text-emerald-700">${esc(active.type)} &middot; valid until ${fmt(active.returnTime)} &middot; one-time use</p></div>
-            <button onclick="app.showTicket('${active.id}')" class="bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-xl">Show QR</button></div>` : ''}
-
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <h3 class="text-sm font-bold mb-3">My Outpass History</h3>
-            <div class="overflow-x-auto"><table class="w-full text-left text-xs">
-              <thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Ref</th><th class="p-3">Type &amp; Reason</th><th class="p-3">Out / Return</th><th class="p-3">Status</th><th class="p-3 text-right">Action</th></tr></thead>
-              <tbody class="divide-y divide-slate-200">
-              ${mine.length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-slate-400">No requests yet.</td></tr>' : mine.map(r => {
-                const s = statusOf(r);
-                return `<tr>
-                  <td class="p-3 font-mono font-bold">${esc(r.id)}</td>
-                  <td class="p-3"><b>${esc(r.type)}</b><br>${esc(r.reason)} <span class="text-slate-400">&rarr; ${esc(r.destination)}</span>${r.remark ? `<br><span class="text-red-600">Remark: ${esc(r.remark)}</span>`:''}</td>
-                  <td class="p-3">${fmt(r.departureTime)}<br>${fmt(r.returnTime)}</td>
-                  <td class="p-3">${badge(s)}</td>
-                  <td class="p-3 text-right">
-                    ${s === 'APPROVED' ? `<button onclick="app.showTicket('${r.id}')" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">View Pass</button>` : ''}
-                    ${s === 'PENDING' ? `<button onclick="app.cancelRequest('${r.id}')" class="px-3 py-1 bg-red-50 text-red-700 rounded font-semibold">Cancel</button>` : ''}
-                  </td></tr>`; }).join('')}
-              </tbody></table></div>
-          </div>
-        </div>`;
-        lucide.createIcons();
-      }
-
-      /* ---------- SHARED: HISTORY + FAMILY + PARENT VIEW ---------- */
+      /* ---------- SHARED CARDS ---------- */
       setHF(k) { this.hf = k; this.route(); }
-
       historyCard(list, isStudent) {
-        const f = this.hf || 'ALL';
+        const f = this.hf;
         const rows = list.filter(r => f === 'ALL' || (f === 'OUTING' ? r.type === 'Outing' : r.type === 'Long Leave'));
         const tb = (k, l) => `<button onclick="app.setHF('${k}')" class="px-3 py-1 rounded-lg text-[11px] font-semibold ${f===k?'bg-indigo-700 text-white':'bg-slate-100 text-slate-600'}">${l}</button>`;
-        const cols = isStudent ? 5 : 4;
         return `
           <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -312,15 +366,16 @@
               <div class="flex gap-2">${tb('ALL','All')}${tb('OUTING','Outings')}${tb('LEAVE','Leaves')}</div>
             </div>
             <div class="overflow-x-auto"><table class="w-full text-left text-xs">
-              <thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Ref</th><th class="p-3">Type &amp; Reason</th><th class="p-3">Out / Return</th><th class="p-3">Status</th>${isStudent ? '<th class="p-3 text-right">Action</th>' : ''}</tr></thead>
+              <thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Ref</th><th class="p-3">Type &amp; Reason</th><th class="p-3">Out / Return</th><th class="p-3">Verification</th><th class="p-3">Status</th>${isStudent ? '<th class="p-3 text-right">Action</th>' : ''}</tr></thead>
               <tbody class="divide-y divide-slate-200">
-              ${rows.length === 0 ? `<tr><td colspan="${cols}" class="p-4 text-center text-slate-400">No records found.</td></tr>` : rows.map(r => {
-                const s = statusOf(r);
+              ${rows.length === 0 ? `<tr><td colspan="6" class="p-4 text-center text-slate-400">No records found.</td></tr>` : rows.map(r => {
+                const s = statusOf(r), v = r.verification;
                 return `<tr>
                   <td class="p-3 font-mono font-bold">${esc(r.id)}</td>
                   <td class="p-3"><b>${esc(r.type)}</b><br>${esc(r.reason)} <span class="text-slate-400">&rarr; ${esc(r.destination)}</span>${r.remark ? `<br><span class="text-red-600">Remark: ${esc(r.remark)}</span>`:''}</td>
-                  <td class="p-3">${fmt(r.departureTime)}<br>${fmt(r.returnTime)}</td>
-                  <td class="p-3">${badge(s)}${s === 'USED' ? `<br><span class="text-[10px] text-slate-400">Exit: ${fmt(r.usedAt)}</span>` : ''}</td>
+                  <td class="p-3">${fmt(r.departureTime)}<br>${fmt(r.returnTime)}${r.returnedAt ? `<br><span class="text-[10px] text-teal-700">Back: ${fmt(r.returnedAt)}${r.lateMin ? ` (${r.lateMin} min late)` : ''}</span>` : ''}</td>
+                  <td class="p-3">${v ? `<span class="${v.outcome==='CONFIRMED'?'text-emerald-700':'text-red-600'} font-semibold">${v.type === 'video' ? 'Video' : 'Phone'} &middot; ${v.outcome === 'CONFIRMED' ? 'Confirmed' : 'Not confirmed'}</span>` : '<span class="text-slate-400">Awaiting call</span>'}</td>
+                  <td class="p-3">${badge(s)}</td>
                   ${isStudent ? `<td class="p-3 text-right">
                     ${s === 'APPROVED' ? `<button onclick="app.showTicket('${r.id}')" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">View Pass</button>` : ''}
                     ${s === 'PENDING' ? `<button onclick="app.cancelRequest('${r.id}')" class="px-3 py-1 bg-red-50 text-red-700 rounded font-semibold">Cancel</button>` : ''}
@@ -329,16 +384,15 @@
               </tbody></table></div>
           </div>`;
       }
-
       familyCard(u, editable) {
         const fam = u.family || [];
         return `
           <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-bold">Family Members</h3>
-              ${editable ? `<button onclick="app.openFamily()" class="bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-lg">+ Add Member</button>` : ''}
+              <h3 class="text-sm font-bold">Parent &amp; Family Details</h3>
+              ${editable ? `<button onclick="app.openFamily()" class="btn bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-lg">+ Add Member</button>` : ''}
             </div>
-            ${fam.length === 0 ? '<p class="text-xs text-slate-400">No family details added yet.</p>' : `<div class="grid md:grid-cols-2 gap-3">${fam.map(m => `
+            ${fam.length === 0 ? `<p class="text-xs ${editable ? 'text-amber-700 font-semibold' : 'text-slate-400'}">${editable ? 'Add at least one parent/guardian. It is required to request an outpass (the caretaker verifies by calling them).' : 'No family details added yet.'}</p>` : `<div class="grid md:grid-cols-2 gap-3">${fam.map(m => `
               <div class="border border-slate-200 rounded-xl p-3 text-xs flex justify-between items-start gap-2">
                 <div>
                   <p class="font-bold text-sm">${esc(m.name)} <span class="text-slate-400 font-normal">(${esc(m.relation)})</span></p>
@@ -350,127 +404,121 @@
               </div>`).join('')}</div>`}
           </div>`;
       }
-
-      openFamily() {
-        if (!this.guard('STUDENT')) return;
-        if ((DB.users[this.session.id].family || []).length >= 6) return alert('You can add up to 6 family members.');
-        document.getElementById('modalCard').innerHTML = `
-          <div class="flex justify-between items-center pb-3 border-b mb-4"><h3 class="font-bold">Add Family Member</h3><button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button></div>
-          <form onsubmit="app.saveFamily(event)" class="space-y-3 text-xs">
-            <div><label class="block font-semibold mb-1">Full Name</label><input id="fName" required maxlength="60" class="w-full p-2.5 border rounded-xl"></div>
-            <div class="grid grid-cols-2 gap-3">
-              <div><label class="block font-semibold mb-1">Relation</label>
-                <select id="fRel" class="w-full p-2.5 border rounded-xl"><option>Father</option><option>Mother</option><option>Guardian</option><option>Brother</option><option>Sister</option><option>Grandparent</option><option>Other</option></select></div>
-              <div><label class="block font-semibold mb-1">Mobile Number</label><input id="fPhone" type="tel" required maxlength="10" class="w-full p-2.5 border rounded-xl" placeholder="9876543210"></div>
-            </div>
-            <div><label class="block font-semibold mb-1">Occupation (optional)</label><input id="fJob" maxlength="60" class="w-full p-2.5 border rounded-xl"></div>
-            <div><label class="block font-semibold mb-1">Address (optional)</label><input id="fAddr" maxlength="120" class="w-full p-2.5 border rounded-xl"></div>
-            <p id="fErr" class="text-red-600 font-semibold hidden"></p>
-            <button class="w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Save Member</button>
-          </form>`;
-        document.getElementById('modalBackdrop').classList.remove('hidden');
-        lucide.createIcons();
-      }
-
-      saveFamily(e) {
-        e.preventDefault();
-        if (!this.guard('STUDENT')) return;
-        if (!PHONE_RE.test(fPhone.value.trim())) return this.showErr('fErr', 'Enter a valid 10-digit mobile number.');
-        const u = DB.users[this.session.id];
-        u.family = u.family || [];
-        u.family.push({ id: 'F' + Date.now(), name: fName.value.trim(), relation: fRel.value, phone: fPhone.value.trim(),
-                        occupation: fJob.value.trim(), address: fAddr.value.trim() });
-        saveDB(); this.closeModal(); this.renderStudent();
-      }
-
-      removeFamily(fid) {
-        if (!this.guard('STUDENT') || !confirm('Remove this family member?')) return;
-        const u = DB.users[this.session.id];
-        u.family = (u.family || []).filter(m => m.id !== fid);
-        saveDB(); this.renderStudent();
-      }
-
-      /* ---------- PARENT (read-only) ---------- */
-      renderParent() {
-        if (!this.guard('PARENT')) return;
-        const u = DB.users[this.session.id];
-        const mine = DB.requests.filter(r => r.studentId === u.id).sort((a,b) => b.createdAt - a.createdAt);
-        const cnt = f => mine.filter(f).length;
-        const stat = (label, val, color) => `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm"><p class="text-[11px] text-slate-500 font-semibold uppercase">${label}</p><p class="text-2xl font-bold ${color} mt-1">${val}</p></div>`;
-        document.getElementById('appContent').innerHTML = `
-        <div class="space-y-5">
-          <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 text-xs text-indigo-800 font-semibold">Parent view &middot; read only. You are viewing your ward's leave and outing records.</div>
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center space-x-4">
+      profileCard(u, extra = '') {
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center space-x-4">
             <div class="w-16 h-16 rounded-2xl bg-indigo-700 text-white flex items-center justify-center text-xl font-bold">${esc(initials(u.name))}</div>
             <div>
               <h2 class="text-xl font-bold">${esc(u.name)}</h2>
               <p class="text-xs text-slate-500">ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p>
               <p class="text-xs text-slate-500">${esc(u.email)} &middot; +91 ${esc(u.phone)}</p>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            ${stat('Outings Taken', cnt(r => r.type === 'Outing' && r.status === 'USED'), 'text-indigo-700')}
-            ${stat('Leaves Taken', cnt(r => r.type === 'Long Leave' && r.status === 'USED'), 'text-emerald-700')}
-            ${stat('Total Requests', mine.length, 'text-slate-800')}
-            ${stat('Pending', cnt(r => r.status === 'PENDING'), 'text-amber-600')}
-          </div>
-          ${this.historyCard(mine, false)}
-          ${this.familyCard(u, false)}
+            </div></div>${extra}</div>`;
+      }
+      statRow(mine) {
+        return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          ${stat('Outings Taken', mine.filter(r => r.type==='Outing' && taken(r)).length, 'text-indigo-700')}
+          ${stat('Leaves Taken', mine.filter(r => r.type==='Long Leave' && taken(r)).length, 'text-emerald-700')}
+          ${stat('Total Requests', mine.length)}
+          ${stat('Pending', mine.filter(r => r.status==='PENDING').length, 'text-amber-600')}</div>`;
+      }
+
+      /* ---------- STUDENT ---------- */
+      renderStudent() {
+        if (!this.guard('STUDENT')) return;
+        const u = DB.users[this.session.id];
+        const mine = DB.requests.filter(r => r.studentId === u.id).sort((a,b) => b.createdAt - a.createdAt);
+        const active = mine.find(r => statusOf(r) === 'APPROVED');
+        const calling = mine.find(r => r.status === 'PENDING' && r.call && !r.call.endedAt);
+        $('appContent').innerHTML = `
+        <div class="space-y-5">
+          ${this.profileCard(u, `<button onclick="app.openRequest()" class="btn bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow">+ Request Outpass</button>`)}
+          ${isFemale(u) ? `<div class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-800"><b>Safety policy:</b> a recorded video call with the caretaker is mandatory before any outpass is approved.</div>`
+                        : `<div class="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-800"><b>Verification policy:</b> the caretaker will call your parent/guardian (recorded) before an outpass is approved.</div>`}
+          ${calling ? `<div class="bg-purple-600 text-white rounded-2xl p-4 flex items-center justify-between text-sm"><div><p class="font-bold">Caretaker is requesting a video call</p><p class="text-xs text-purple-100">Request ${esc(calling.id)} &middot; keep your camera on and stay on this page</p></div>
+            <button onclick="app.joinCall('${calling.id}')" class="btn bg-white text-purple-700 font-semibold text-xs px-4 py-2 rounded-xl">Join Call</button></div>` : ''}
+          ${this.statRow(mine)}
+          ${active ? `<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-sm">
+            <div><p class="font-bold text-emerald-800">Active pass: ${esc(active.passCode)}</p><p class="text-xs text-emerald-700">${esc(active.type)} &middot; valid until ${fmt(active.returnTime)} &middot; one-time use</p></div>
+            <button onclick="app.showTicket('${active.id}')" class="btn bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-xl">Show QR</button></div>` : ''}
+          ${this.familyCard(u, true)}
+          ${this.historyCard(mine, true)}
         </div>`;
         lucide.createIcons();
       }
+      openFamily() {
+        if (!this.guard('STUDENT')) return;
+        if ((DB.users[this.session.id].family || []).length >= 6) return toast('You can add up to 6 family members.', 'warn');
+        const inp = 'w-full p-2.5 border rounded-xl';
+        openModal(`${modalHead('Add Family Member')}
+          <form onsubmit="app.saveFamily(event)" class="space-y-3 text-xs">
+            <div><label class="block font-semibold mb-1">Full Name</label><input id="fName" required maxlength="60" class="${inp}"></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="block font-semibold mb-1">Relation</label><select id="fRel" class="${inp}"><option>Father</option><option>Mother</option><option>Guardian</option><option>Brother</option><option>Sister</option><option>Grandparent</option><option>Other</option></select></div>
+              <div><label class="block font-semibold mb-1">Mobile Number</label><input id="fPhone" type="tel" required maxlength="10" class="${inp}" placeholder="9876543210"></div>
+            </div>
+            <div><label class="block font-semibold mb-1">Occupation (optional)</label><input id="fJob" maxlength="60" class="${inp}"></div>
+            <div><label class="block font-semibold mb-1">Address (optional)</label><input id="fAddr" maxlength="120" class="${inp}"></div>
+            <p id="fErr" class="text-red-600 font-semibold hidden"></p>
+            <button class="btn w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Save Member</button>
+          </form>`);
+      }
+      saveFamily(e) {
+        e.preventDefault(); if (!this.guard('STUDENT')) return;
+        if (!PHONE_RE.test(fPhone.value.trim())) return this.showErr('fErr', 'Enter a valid 10-digit mobile number.');
+        const u = DB.users[this.session.id]; u.family = u.family || [];
+        u.family.push({ id:'F'+Date.now(), name:fName.value.trim(), relation:fRel.value, phone:fPhone.value.trim(), occupation:fJob.value.trim(), address:fAddr.value.trim() });
+        log('FAMILY_ADDED', u.id); saveDB(); this.closeModal(); this.renderStudent(); toast('Family member saved.', 'ok');
+      }
+      async removeFamily(fid) {
+        if (!this.guard('STUDENT') || !(await ask({ title:'Remove family member?', ok:'Remove', danger:true }))) return;
+        const u = DB.users[this.session.id]; u.family = (u.family || []).filter(m => m.id !== fid);
+        log('FAMILY_REMOVED', u.id); saveDB(); this.renderStudent();
+      }
       openRequest() {
         const u = DB.users[this.session.id];
+        if (!(u.family || []).length) return toast('Add a parent/guardian contact first. It is needed for call verification.', 'warn');
         const open = DB.requests.find(r => r.studentId === u.id && ['PENDING','APPROVED'].includes(statusOf(r)));
-        if (open) { alert('You already have an active request (' + open.id + '). Finish or cancel it before applying for a new one.'); return; }
-        const now = new Date(), later = new Date(now.getTime() + 4*3600*1000);
-        document.getElementById('modalCard').innerHTML = `
-          <div class="flex justify-between items-center pb-3 border-b mb-4"><h3 class="font-bold">Request Outpass</h3><button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        if (open) return toast(`You already have an active request (${open.id}). Finish or cancel it first.`, 'warn');
+        if (DB.requests.some(r => r.studentId === u.id && statusOf(r) === 'OVERDUE')) return toast('You have an overdue return. Contact the caretaker.', 'err');
+        const now = new Date(), later = new Date(now.getTime() + 4*3600*1000), inp = 'w-full p-2.5 border rounded-xl';
+        openModal(`${modalHead('Request Outpass')}
           <form onsubmit="app.submitRequest(event)" class="space-y-3 text-xs">
             <div><label class="block font-semibold mb-1">Type</label>
-              <select id="rType" onchange="app.typeHint()" class="w-full p-2.5 border rounded-xl"><option>Outing</option><option>Long Leave</option></select>
+              <select id="rType" onchange="app.typeHint()" class="${inp}"><option>Outing</option><option>Long Leave</option></select>
               <p id="rHint" class="text-[11px] text-slate-400 mt-1">Short outing from campus (same day).</p></div>
-            <div><label class="block font-semibold mb-1">Reason</label><input id="rReason" required maxlength="80" class="w-full p-2.5 border rounded-xl" placeholder="Medical / Shopping / Home / Personal"></div>
-            <div><label class="block font-semibold mb-1">Destination</label><input id="rDest" required maxlength="80" class="w-full p-2.5 border rounded-xl" placeholder="Place / city"></div>
+            <div><label class="block font-semibold mb-1">Reason</label><input id="rReason" required maxlength="80" class="${inp}" placeholder="Medical / Shopping / Home / Personal"></div>
+            <div><label class="block font-semibold mb-1">Destination</label><input id="rDest" required maxlength="80" class="${inp}" placeholder="Place / city"></div>
             <div class="grid grid-cols-2 gap-3">
-              <div><label class="block font-semibold mb-1">Leaving</label><input id="rOut" type="datetime-local" required value="${localISO(now)}" class="w-full p-2.5 border rounded-xl"></div>
-              <div><label class="block font-semibold mb-1">Returning</label><input id="rIn" type="datetime-local" required value="${localISO(later)}" class="w-full p-2.5 border rounded-xl"></div>
+              <div><label class="block font-semibold mb-1">Leaving</label><input id="rOut" type="datetime-local" required value="${localISO(now)}" class="${inp}"></div>
+              <div><label class="block font-semibold mb-1">Returning</label><input id="rIn" type="datetime-local" required value="${localISO(later)}" class="${inp}"></div>
             </div>
+            <div class="bg-slate-50 rounded-xl p-3 text-[11px] text-slate-600">${isFemale(u) ? 'A recorded <b>video call</b> with the caretaker is required for approval.' : 'The caretaker will make a recorded <b>phone call</b> to your parent/guardian for approval.'}</div>
             <p id="rErr" class="text-red-600 font-semibold hidden"></p>
-            <button class="w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Submit Request</button>
-          </form>`;
-        document.getElementById('modalBackdrop').classList.remove('hidden');
-        lucide.createIcons();
+            <button class="btn w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Submit Request</button>
+          </form>`);
       }
       typeHint() { rHint.innerText = rType.value === 'Long Leave' ? 'Long leave can be requested any time - no advance application needed.' : 'Short outing from campus (same day).'; }
-
       submitRequest(e) {
         e.preventDefault();
         const out = rOut.value, back = rIn.value;
         if (new Date(back) <= new Date(out)) return this.showErr('rErr', 'Return time must be after leaving time.');
         if (new Date(back) < new Date()) return this.showErr('rErr', 'Return time is already over.');
         if (rType.value === 'Outing' && (new Date(back) - new Date(out)) > 24*3600*1000) return this.showErr('rErr', 'Outing cannot exceed 24 hours. Choose Long Leave.');
-        const seq = String(DB.requests.length + 1).padStart(4, '0');
-        DB.requests.push({
-          id: `REQ-${new Date().getFullYear()}-${seq}`, studentId: this.session.id, type: rType.value,
-          reason: rReason.value.trim(), destination: rDest.value.trim(), departureTime: out, returnTime: back,
-          status: 'PENDING', passCode: null, createdAt: Date.now()
-        });
-        saveDB(); this.closeModal(); this.renderStudent();
+        const id = `REQ-${new Date().getFullYear()}-${String(DB.requests.length + 1).padStart(4, '0')}`;
+        DB.requests.push({ id, studentId:this.session.id, type:rType.value, reason:rReason.value.trim(), destination:rDest.value.trim(),
+          departureTime:out, returnTime:back, status:'PENDING', passCode:null, verification:null, call:null, createdAt:Date.now() });
+        log('REQUEST_CREATED', id); saveDB(); this.closeModal(); this.renderStudent(); toast('Request submitted. Awaiting caretaker verification.', 'ok');
       }
-
-      cancelRequest(id) {
-        if (!confirm('Cancel this request?')) return;
+      async cancelRequest(id) {
+        if (!(await ask({ title:'Cancel this request?', ok:'Cancel request', danger:true }))) return;
         const r = DB.requests.find(x => x.id === id && x.studentId === this.session.id);
-        if (r && r.status === 'PENDING') { r.status = 'CANCELLED'; saveDB(); this.renderStudent(); }
+        if (r && r.status === 'PENDING') { r.status = 'CANCELLED'; log('REQUEST_CANCELLED', id); saveDB(); this.renderStudent(); }
       }
-
       showTicket(id) {
         const r = DB.requests.find(x => x.id === id && x.studentId === this.session.id);
         if (!r || statusOf(r) !== 'APPROVED') return;
         const u = DB.users[r.studentId];
-        document.getElementById('modalCard').innerHTML = `
-          <div class="flex justify-between items-center pb-3 border-b mb-4 no-print"><h3 class="font-bold">SmartPass Digital Ticket</h3><button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        openModal(`<div class="no-print">${modalHead('SmartPass Digital Ticket')}</div>
           <div class="border-2 border-dashed border-indigo-300 rounded-xl p-4 text-xs space-y-1 text-center">
             <p class="font-bold text-sm text-indigo-800">RGUKT SmartPass</p>
             <p><b>${esc(u.name)}</b> (${esc(u.id)}) &middot; ${esc(u.dept)}</p>
@@ -479,239 +527,400 @@
             <div id="qrcode" class="flex justify-center my-3"></div>
             <p class="text-[11px] text-slate-500">Pass ID (show to security if QR fails)</p>
             <p class="font-mono text-2xl font-bold tracking-widest">${esc(r.passCode)}</p>
-            <p class="text-[11px] text-red-600 font-semibold">One-time use only. Becomes invalid after the gate scan.</p>
+            <p class="text-[11px] text-red-600 font-semibold">Valid for one exit. Security will log your return at the gate.</p>
           </div>
-          <button onclick="window.print()" class="no-print mt-3 w-full bg-slate-900 text-white py-2 rounded-xl font-semibold text-xs">Print / Save</button>`;
-        document.getElementById('modalBackdrop').classList.remove('hidden');
-        lucide.createIcons();
-        setTimeout(() => new QRCode(document.getElementById('qrcode'), { text: r.passCode, width: 150, height: 150 }), 30);
+          <button onclick="window.print()" class="no-print btn mt-3 w-full bg-slate-900 text-white py-2 rounded-xl font-semibold text-xs">Print / Save</button>`);
+        setTimeout(() => new QRCode($('qrcode'), { text: r.passCode, width:150, height:150 }), 30);
+      }
+      joinCall(id) {
+        const r = DB.requests.find(x => x.id === id && x.studentId === this.session.id);
+        if (!r || !r.call) return;
+        openModal(`${modalHead('Verification Video Call')}
+          <p class="text-[11px] text-slate-500 mb-2">This call is being recorded for safety and audit purposes. Allow camera and microphone access.</p>
+          <iframe class="w-full rounded-xl border" style="height:420px" allow="camera; microphone; display-capture; fullscreen" src="https://${JITSI}/${encodeURIComponent(r.call.room)}#config.prejoinPageEnabled=false&config.startWithVideoMuted=false"></iframe>`, true);
+      }
+      closeModal() {
+        if (Rec.active) Rec.discard();
+        this.vf = null; $('modalCard').innerHTML = ''; $('modalBackdrop').classList.add('hidden');
       }
 
-      closeModal() { document.getElementById('modalBackdrop').classList.add('hidden'); }
+      /* ---------- PARENT (read-only) ---------- */
+      renderParent() {
+        if (!this.guard('PARENT')) return;
+        const u = DB.users[this.session.id];
+        const mine = DB.requests.filter(r => r.studentId === u.id).sort((a,b) => b.createdAt - a.createdAt);
+        const outside = mine.find(r => r.status === 'USED');
+        $('appContent').innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 text-xs text-indigo-800 font-semibold">Parent view &middot; read only. You are viewing your ward's leave and outing records.</div>
+          ${this.profileCard(u)}
+          ${outside ? `<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm"><p class="font-bold text-amber-800">${esc(u.name.split(' ')[0])} is currently outside campus</p><p class="text-xs text-amber-700">Left at ${fmt(outside.usedAt)} &middot; expected back by ${fmt(outside.returnTime)} &middot; ${esc(outside.destination)}</p></div>` : ''}
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 text-xs text-slate-600">Before approving any outpass, the hostel caretaker will contact a registered parent/guardian by ${isFemale(u) ? '<b>video call</b>' : '<b>phone call</b>'}. Calls are recorded for safety. Please keep your registered number reachable.</div>
+          ${this.statRow(mine)}
+          ${this.historyCard(mine, false)}
+          ${this.familyCard(u, false)}
+        </div>`;
+        lucide.createIcons();
+      }
 
       /* ---------- CARETAKER ---------- */
       renderCaretaker() {
         if (!this.guard('CARETAKER')) return;
-        const all = DB.requests.slice().sort((a,b) => b.createdAt - a.createdAt);
-        const q = this.q.toLowerCase();
+        const all = DB.requests.slice().sort((a,b) => b.createdAt - a.createdAt), q = this.q.toLowerCase();
         const list = all.filter(r => {
-          const u = DB.users[r.studentId] || {};
-          const st = statusOf(r);
-          const f = this.filter === 'ALL' || st === this.filter;
-          return f && (!q || r.studentId.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q) || (r.passCode||'').toLowerCase().includes(q));
+          const u = DB.users[r.studentId] || {}, st = statusOf(r);
+          return (this.filter === 'ALL' || st === this.filter) && (!q || r.studentId.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q) || (r.passCode||'').toLowerCase().includes(q));
         });
         const c = s => all.filter(r => statusOf(r) === s).length;
         const tabBtn = (k, label) => `<button onclick="app.setFilter('${k}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${this.filter===k?'bg-indigo-700 text-white':'bg-slate-100 text-slate-600'}">${label}</button>`;
-
-        document.getElementById('appContent').innerHTML = `
+        $('appContent').innerHTML = `
         <div class="space-y-5">
           <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <h2 class="text-lg font-bold">Caretaker Approval Desk</h2>
-            <p class="text-xs text-slate-500 mb-3">Pending: <b>${c('PENDING')}</b> &middot; Approved: <b>${c('APPROVED')}</b> &middot; Used: <b>${c('USED')}</b> &middot; Rejected: <b>${c('REJECTED')}</b></p>
+            <p class="text-xs text-slate-500 mb-3">Pending: <b>${c('PENDING')}</b> &middot; Approved: <b>${c('APPROVED')}</b> &middot; Outside: <b>${c('USED')}</b> &middot; Overdue: <b class="text-red-600">${c('OVERDUE')}</b> &middot; Rejected: <b>${c('REJECTED')}</b></p>
             <div class="flex flex-wrap gap-2 items-center">
-              ${tabBtn('PENDING','Pending')}${tabBtn('APPROVED','Approved')}${tabBtn('USED','Used')}${tabBtn('REJECTED','Rejected')}${tabBtn('ALL','All')}
+              ${tabBtn('PENDING','Pending')}${tabBtn('APPROVED','Approved')}${tabBtn('USED','Outside')}${tabBtn('OVERDUE','Overdue')}${tabBtn('RETURNED','Returned')}${tabBtn('REJECTED','Rejected')}${tabBtn('ALL','All')}
               <input id="cSearch" oninput="app.search(this.value)" value="${esc(this.q)}" placeholder="Search name / ID / pass code" class="ml-auto p-2 text-xs border rounded-xl w-56">
             </div>
           </div>
           <div class="space-y-3">
             ${list.length === 0 ? '<p class="text-center text-xs text-slate-400 py-8">No requests in this view.</p>' : list.map(r => {
-              const u = DB.users[r.studentId] || { name:'Unknown', dept:'-', phone:'-' }; const s = statusOf(r);
-              return `<div class="bg-white border border-slate-200 rounded-xl p-4 text-xs flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p class="font-bold text-sm">${esc(u.name)} <span class="text-slate-400 font-normal">(${esc(r.studentId)} &middot; ${esc(u.dept)})</span></p>
-                  <p><b>${esc(r.type)}</b> &middot; ${esc(r.reason)} &rarr; ${esc(r.destination)}</p>
-                  <p class="text-slate-500">${fmt(r.departureTime)} &ndash; ${fmt(r.returnTime)} &middot; +91 ${esc(u.phone)}</p>
-                  ${r.passCode ? `<p class="font-mono text-slate-600">Pass: ${esc(r.passCode)}</p>` : ''}
-                </div>
-                <div class="flex items-center gap-2">${badge(s)}
-                  ${s === 'PENDING' ? `<button onclick="app.decide('${r.id}',true)" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold">Approve</button>
-                  <button onclick="app.decide('${r.id}',false)" class="px-3 py-1.5 bg-red-600 text-white rounded-lg font-semibold">Reject</button>` : ''}
+              const u = DB.users[r.studentId] || { name:'Unknown', dept:'-', phone:'-', family:[] }, s = statusOf(r), v = r.verification, fem = needsVideo(u);
+              const vChip = v ? `<span class="px-2 py-1 rounded text-[11px] font-semibold ${v.outcome==='CONFIRMED'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}">${v.type==='video'?'Video':'Phone'} call: ${v.outcome.replace('_',' ')}</span>`
+                                   : `<span class="px-2 py-1 rounded text-[11px] font-semibold bg-amber-100 text-amber-800">${fem ? 'Video call required' : 'Phone call required'}</span>`;
+              return `<div class="bg-white border border-slate-200 rounded-xl p-4 text-xs">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p class="font-bold text-sm">${esc(u.name)} <span class="text-slate-400 font-normal">(${esc(r.studentId)} &middot; ${esc(u.dept)} &middot; ${esc(u.gender)})</span></p>
+                    <p><b>${esc(r.type)}</b> &middot; ${esc(r.reason)} &rarr; ${esc(r.destination)}</p>
+                    <p class="text-slate-500">${fmt(r.departureTime)} &ndash; ${fmt(r.returnTime)} &middot; Student +91 ${esc(u.phone)}</p>
+                    <p class="text-slate-500">Guardians: ${(u.family||[]).map(m => `${esc(m.name)} (${esc(m.relation)}) <a class="text-indigo-700 underline" href="tel:+91${esc(m.phone)}">+91 ${esc(m.phone)}</a>`).join(' &middot; ') || '<span class="text-red-600">none registered</span>'}</p>
+                    ${r.passCode ? `<p class="font-mono text-slate-600">Pass: ${esc(r.passCode)}</p>` : ''}
+                    ${v ? `<p class="text-slate-500 mt-1">Verified by ${esc(v.by)} &middot; spoke with ${esc(v.spokeWith)} &middot; ${fmt(v.at)}${v.notes ? ` &middot; "${esc(v.notes)}"` : ''}</p>` : ''}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">${badge(s)}${s === 'PENDING' ? vChip : ''}
+                    ${s === 'PENDING' ? `
+                      <button onclick="app.openVerify('${r.id}')" class="btn px-3 py-1.5 ${fem?'bg-purple-600':'bg-sky-600'} text-white rounded-lg font-semibold">${v ? 'Redo' : 'Start'} ${fem ? 'Video' : 'Phone'} Verification</button>
+                      <button onclick="app.decide('${r.id}',true)" ${canApprove(r)?'':'disabled'} title="${canApprove(r)?'':'Confirmed + recorded verification call required'}" class="btn px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold">Approve</button>
+                      <button onclick="app.decide('${r.id}',false)" class="btn px-3 py-1.5 bg-red-600 text-white rounded-lg font-semibold">Reject</button>` : ''}
+                  </div>
                 </div>
               </div>`; }).join('')}
           </div>
         </div>`;
         lucide.createIcons();
-        const el = document.getElementById('cSearch'); if (this.q) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+        const el = $('cSearch'); if (this.q) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
       }
       setFilter(f) { this.filter = f; this.renderCaretaker(); }
       search(v) { this.q = v; this.renderCaretaker(); }
 
-      decide(id, ok) {
+      /* ----- verification call desk ----- */
+      openVerify(id, forceType) {
+        if (!this.guard('CARETAKER')) return;
+        const r = DB.requests.find(x => x.id === id), u = DB.users[r.studentId];
+        const type = needsVideo(u) ? 'video' : (forceType || 'phone');
+        this.vf = { reqId:id, type, recId:null, recMeta:null };
+        const fam = u.family || [];
+        openModal(`${modalHead(`${type === 'video' ? 'Video' : 'Phone'} Verification &middot; ${esc(u.name)}`)}
+          <div class="text-xs space-y-3">
+            <div class="bg-slate-50 rounded-xl p-3"><b>${esc(r.type)}</b> &middot; ${esc(r.reason)} &rarr; ${esc(r.destination)}<br>${fmt(r.departureTime)} &ndash; ${fmt(r.returnTime)}</div>
+            ${needsVideo(u) ? '<div class="bg-purple-50 border border-purple-200 text-purple-800 rounded-xl p-3 font-semibold">Mandatory video call for female students. Phone-only verification cannot approve this request.</div>'
+              : `<div class="flex gap-2"><button onclick="app.openVerify('${id}','phone')" class="px-3 py-1.5 rounded-lg font-semibold ${type==='phone'?'bg-sky-600 text-white':'bg-slate-100'}">Phone call</button>
+                 <button onclick="app.openVerify('${id}','video')" class="px-3 py-1.5 rounded-lg font-semibold ${type==='video'?'bg-purple-600 text-white':'bg-slate-100'}">Video call</button></div>`}
+            <div><p class="font-semibold mb-1">Contacts</p>${fam.map(m => `<a href="tel:+91${esc(m.phone)}" class="inline-block mr-2 mb-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg font-semibold">&#128222; ${esc(m.name)} (${esc(m.relation)}) +91 ${esc(m.phone)}</a>`).join('')}
+              <a href="tel:+91${esc(u.phone)}" class="inline-block mb-1 px-3 py-1.5 bg-slate-100 rounded-lg font-semibold">&#128222; Student +91 ${esc(u.phone)}</a></div>
+
+            ${type === 'video' ? `<div>
+              <button id="vcStart" onclick="app.startVideo()" class="btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">Start video call</button>
+              <p class="text-[11px] text-slate-500 mt-1">The student sees a "Join Call" banner on their dashboard (needs the shared backend; in demo mode share the room link below). Then press <b>Start recording</b> and choose <b>This tab</b>.</p>
+              <div id="vcFrame" class="mt-2"></div></div>`
+              : `<p class="text-[11px] text-slate-500">Call the parent from your phone using the links above, put it on <b>speaker</b>, and press <b>Start recording</b> to record the conversation through this device's microphone.</p>`}
+
+            <div class="border rounded-xl p-3">
+              <label class="flex items-start gap-2"><input id="vConsent" type="checkbox" class="mt-0.5"> <span>I have informed the person on the call that this conversation is being recorded for hostel safety and audit.</span></label>
+              <div class="flex items-center gap-3 mt-3">
+                <button id="recBtn" onclick="app.toggleRec()" class="btn px-4 py-2 bg-red-600 text-white rounded-lg font-semibold">Start recording</button>
+                <span id="recStatus" class="text-slate-500">Not recorded yet</span>
+              </div>
+            </div>
+
+            <form onsubmit="app.submitVerify(event)" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block font-semibold mb-1">Spoke with</label><select id="vWho" class="w-full p-2.5 border rounded-xl">${fam.map(m => `<option>${esc(m.name)} (${esc(m.relation)})</option>`).join('')}<option>${esc(u.name)} (Student)</option></select></div>
+                <div><label class="block font-semibold mb-1">Outcome</label><select id="vOut" class="w-full p-2.5 border rounded-xl"><option value="CONFIRMED">Guardian confirmed the outing</option><option value="NOT_CONFIRMED">Guardian did not confirm</option><option value="UNREACHABLE">Could not reach</option></select></div>
+              </div>
+              <div><label class="block font-semibold mb-1">Notes</label><input id="vNotes" maxlength="200" class="w-full p-2.5 border rounded-xl" placeholder="Optional remarks"></div>
+              <p id="vErr" class="text-red-600 font-semibold hidden"></p>
+              <button id="vSave" class="btn w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Save verification</button>
+            </form>
+          </div>`, true);
+      }
+      startVideo() {
+        const r = DB.requests.find(x => x.id === this.vf.reqId);
+        if (!r.call) { r.call = { room:`SmartPass-${r.id}-${Math.random().toString(36).slice(2,8)}`, startedAt:Date.now(), by:this.session.id }; saveDB(); log('VIDEO_CALL_STARTED', r.id); }
+        $('vcStart').classList.add('hidden');
+        $('vcFrame').innerHTML = `<iframe class="w-full rounded-xl border" style="height:340px" allow="camera; microphone; display-capture; fullscreen" src="https://${JITSI}/${encodeURIComponent(r.call.room)}#config.prejoinPageEnabled=false"></iframe>
+          <p class="text-[11px] text-slate-500 mt-1">Room link to share: <span class="font-mono select-all">https://${JITSI}/${esc(r.call.room)}</span></p>`;
+      }
+      async toggleRec() {
+        const btn = $('recBtn'), st = $('recStatus');
+        try {
+          if (!Rec.active) {
+            if (!$('vConsent').checked) return toast('Confirm that the call participant has been told it is recorded.', 'warn');
+            if (this.vf.type === 'video' && !$('vcFrame').innerHTML) return toast('Start the video call first.', 'warn');
+            await Rec.start(this.vf.type);
+            btn.textContent = 'Stop recording'; st.innerHTML = '<span class="text-red-600 font-semibold"><span class="rec-dot">&#9679;</span> Recording...</span>';
+          } else { await this.stopRec(); }
+        } catch (err) { Rec.discard(); toast('Could not start recording: ' + (err.message || err.name), 'err'); }
+      }
+      async stopRec() {
+        const blob = await Rec.stop(), st = this.vf, r = DB.requests.find(x => x.id === st.reqId);
+        const id = 'REC-' + Date.now();
+        await IDB.put(id, blob);
+        const meta = { id, requestId:r.id, studentId:r.studentId, kind:st.type, size:blob.size, mime:blob.type, at:Date.now(), by:this.session.id };
+        DB.recordings.push(meta); st.recId = id; st.recMeta = meta; log('CALL_RECORDED', `${r.id} ${id}`); saveDB();
+        if (API_BASE) { const fd = new FormData(); fd.append('file', blob, id + '.webm'); fd.append('meta', JSON.stringify(meta)); api(`/api/recordings/${r.id}`, { method:'POST', body:fd }); }
+        const btn = $('recBtn'), s = $('recStatus');
+        if (btn) { btn.textContent = 'Record again'; s.innerHTML = `<span class="text-emerald-700 font-semibold">Saved ${id} (${mb(blob.size)})</span>`; }
+      }
+      async submitVerify(e) {
+        e.preventDefault();
+        if (Rec.active) await this.stopRec();
+        const st = this.vf, r = DB.requests.find(x => x.id === st.reqId);
+        if (REQUIRE_RECORDING && !st.recId) return this.showErr('vErr', 'Record the call before saving the verification.');
+        r.verification = { type:st.type, outcome:vOut.value, spokeWith:vWho.value, notes:vNotes.value.trim(), by:this.session.id, at:Date.now(), recordingId:st.recId };
+        if (r.call) r.call.endedAt = Date.now();
+        log('VERIFICATION_SAVED', `${r.id} ${st.type} ${vOut.value}`); saveDB();
+        api(`/api/verify-call/${r.id}`, { method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ verificationType:st.type, verifiedBy:this.session.id, notes:`${vOut.value}: ${vNotes.value.trim()}`, recordingId:st.recId }) });
+        this.closeModal(); this.renderCaretaker();
+        toast(vOut.value === 'CONFIRMED' ? 'Verification saved. You can approve now.' : 'Verification saved (not confirmed).', vOut.value === 'CONFIRMED' ? 'ok' : 'warn');
+      }
+      async decide(id, ok) {
         if (!this.guard('CARETAKER')) return;
         const r = DB.requests.find(x => x.id === id);
         if (!r || r.status !== 'PENDING') return;
-        if (ok) { r.status = 'APPROVED'; r.passCode = genPassCode(); }
-        else { const m = prompt('Reason for rejection (optional):'); if (m === null) return; r.status = 'REJECTED'; r.remark = m.trim(); }
+        if (ok) {
+          if (!canApprove(r)) return toast('A confirmed, recorded verification call is required first.', 'err');
+          r.status = 'APPROVED'; r.passCode = genPassCode();
+        } else {
+          const m = await ask({ title:'Reject request', msg:'Give the student a reason (optional).', input:'Reason for rejection', ok:'Reject', danger:true });
+          if (m === null) return; r.status = 'REJECTED'; r.remark = m;
+        }
         r.decidedAt = Date.now(); r.decidedBy = this.session.id;
-        saveDB(); this.renderCaretaker();
+        log(ok ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED', r.id); saveDB(); this.renderCaretaker();
       }
 
       /* ---------- SECURITY ---------- */
       renderSecurity() {
         if (!this.guard('SECURITY')) return;
         const recent = DB.scans.slice(-6).reverse();
-        document.getElementById('appContent').innerHTML = `
+        const outside = DB.requests.filter(r => r.status === 'USED').length;
+        $('appContent').innerHTML = `
         <div class="max-w-xl mx-auto space-y-5">
           <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-md">
             <h2 class="text-lg font-bold text-center">Security Gate Scanner</h2>
-            <p class="text-xs text-slate-400 mt-1 text-center">Scan the QR or type the Pass ID (e.g. SP-AB12CD)</p>
+            <p class="text-xs text-slate-400 mt-1 text-center">Scan the QR or type the Pass ID (e.g. SP-AB12CD) &middot; ${outside} student(s) currently outside</p>
             <form onsubmit="app.verify(event)" class="mt-4 flex gap-2">
               <input id="gateInput" required placeholder="SP-XXXXXX" class="flex-grow p-3 text-sm rounded-xl bg-slate-800 border border-slate-700 font-mono uppercase" autocomplete="off">
-              <button class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 rounded-xl text-sm">Verify</button>
+              <button class="btn bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 rounded-xl text-sm">Verify</button>
             </form>
-            <button onclick="app.startScanner()" class="mt-3 w-full text-xs bg-slate-700 hover:bg-slate-600 py-2 rounded-xl font-semibold">Scan with camera</button>
+            <button onclick="app.startScanner()" class="btn mt-3 w-full text-xs bg-slate-700 hover:bg-slate-600 py-2 rounded-xl font-semibold">Scan with camera</button>
             <div id="reader" class="mt-3 rounded-xl overflow-hidden"></div>
           </div>
           <div id="gateResult"></div>
           <div class="bg-white border border-slate-200 rounded-2xl p-4 text-xs">
             <h3 class="font-bold mb-2">Recent gate activity</h3>
-            ${recent.length === 0 ? '<p class="text-slate-400">No scans yet.</p>' : recent.map(s => `<div class="flex justify-between py-1 border-b last:border-0"><span class="font-mono">${esc(s.code)} &middot; ${esc(s.name||'-')}</span><span class="${s.result==='EXIT ALLOWED'?'text-emerald-600':'text-red-600'} font-semibold">${esc(s.result)} <span class="text-slate-400 font-normal">${fmt(s.time)}</span></span></div>`).join('')}
+            ${recent.length === 0 ? '<p class="text-slate-400">No scans yet.</p>' : recent.map(s => `<div class="flex justify-between py-1 border-b last:border-0"><span class="font-mono">${esc(s.code)} &middot; ${esc(s.name||'-')}</span><span class="${['EXIT ALLOWED','RETURN LOGGED'].includes(s.result)?'text-emerald-600':'text-red-600'} font-semibold">${esc(s.result)} <span class="text-slate-400 font-normal">${fmt(s.time)}</span></span></div>`).join('')}
           </div>
         </div>`;
         lucide.createIcons();
       }
-
       startScanner() {
-        if (typeof Html5Qrcode === 'undefined') return alert('Camera scanner library failed to load. Enter the Pass ID manually.');
-        this.stopScanner();
-        this.scanner = new Html5Qrcode('reader');
-        this.scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 220 }, txt => {
-          this.stopScanner(); gateInput.value = txt.trim().toUpperCase(); this.lookup(gateInput.value);
-        }).catch(() => alert('Could not access camera. Enter the Pass ID manually.'));
+        if (typeof Html5Qrcode === 'undefined') return toast('Camera scanner failed to load. Enter the Pass ID manually.', 'err');
+        this.stopScanner(); this.scanner = new Html5Qrcode('reader');
+        this.scanner.start({ facingMode:'environment' }, { fps:10, qrbox:220 }, txt => { this.stopScanner(); gateInput.value = txt.trim().toUpperCase(); this.lookup(gateInput.value); })
+          .catch(() => toast('Could not access camera. Enter the Pass ID manually.', 'err'));
       }
       stopScanner() { if (this.scanner) { this.scanner.stop().then(() => this.scanner.clear()).catch(()=>{}); this.scanner = null; } }
-
       verify(e) { e.preventDefault(); this.lookup(gateInput.value.trim().toUpperCase()); }
-
       lookup(code) {
         if (!this.guard('SECURITY')) return;
-        const r = DB.requests.find(x => x.passCode === code);
-        const box = document.getElementById('gateResult');
+        const r = DB.requests.find(x => x.passCode === code), box = $('gateResult');
         if (!r) { this.logScan(code, null, 'INVALID'); box.innerHTML = this.banner('red', 'INVALID PASS', 'No pass found with this ID.'); return this.renderRecentOnly(); }
         const u = DB.users[r.studentId], s = statusOf(r);
-        let color = 'emerald', title = 'VALID PASS', note = 'Details match? Press "Allow Exit" - the pass will be invalidated.';
-        if (s === 'USED') { color = 'red'; title = 'ALREADY USED'; note = `Used at ${fmt(r.usedAt)}. Do NOT allow.`; }
-        else if (s === 'EXPIRED') { color = 'orange'; title = 'PASS EXPIRED'; note = `Valid only until ${fmt(r.returnTime)}.`; }
-        else if (s !== 'APPROVED') { color = 'red'; title = 'NOT VALID'; note = `Status: ${s}`; }
-        if (color !== 'emerald') this.logScan(code, u, title);
-        box.innerHTML = `
-          ${this.banner(color, title, note)}
+        let color = 'emerald', title = 'VALID PASS', note = 'Details match? Press "Allow Exit" - the pass will be used up.', action = '';
+        if (s === 'APPROVED') action = `<div class="flex gap-2 mt-3"><button onclick="app.allowExit('${r.id}')" class="btn flex-1 bg-emerald-600 text-white font-bold py-2.5 rounded-xl">Allow Exit</button><button onclick="app.denyExit('${r.id}')" class="btn flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl">Deny</button></div>`;
+        else if (s === 'USED' || s === 'OVERDUE') {
+          color = s === 'OVERDUE' ? 'red' : 'indigo'; title = s === 'OVERDUE' ? 'OVERDUE - STUDENT IS OUTSIDE' : 'STUDENT IS OUTSIDE'; note = `Left at ${fmt(r.usedAt)}. Due back by ${fmt(r.returnTime)}.`;
+          action = `<button onclick="app.logReturn('${r.id}')" class="btn mt-3 w-full bg-teal-600 text-white font-bold py-2.5 rounded-xl">Log Return to Campus</button>`;
+        }
+        else if (s === 'RETURNED') { color = 'red'; title = 'ALREADY USED'; note = `Returned at ${fmt(r.returnedAt)}. Do NOT allow another exit.`; }
+        else if (s === 'EXPIRED') { color = 'orange'; title = 'PASS EXPIRED'; note = `Valid only until ${fmt(r.returnTime)}.`; this.logScan(code, u, title); }
+        else { color = 'red'; title = 'NOT VALID'; note = `Status: ${s}`; this.logScan(code, u, title); }
+        box.innerHTML = `${this.banner(color, title, note)}
           <div class="bg-white border border-slate-200 rounded-2xl p-5 mt-3 text-xs">
             <div class="flex items-center gap-4 mb-3">
               <div class="w-16 h-16 rounded-2xl bg-indigo-700 text-white flex items-center justify-center text-xl font-bold">${esc(initials(u.name))}</div>
-              <div><p class="text-base font-bold">${esc(u.name)}</p><p>ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p><p>+91 ${esc(u.phone)}</p><p>${esc(u.email)}</p></div>
+              <div><p class="text-base font-bold">${esc(u.name)}</p><p>ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p><p>+91 ${esc(u.phone)}</p></div>
             </div>
             <div class="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl">
               <p><b>Type:</b> ${esc(r.type)}</p><p><b>Ref:</b> ${esc(r.id)}</p>
               <p><b>Reason:</b> ${esc(r.reason)}</p><p><b>Destination:</b> ${esc(r.destination)}</p>
               <p><b>Out:</b> ${fmt(r.departureTime)}</p><p><b>Return:</b> ${fmt(r.returnTime)}</p>
-            </div>
-            ${s === 'APPROVED' ? `<div class="flex gap-2 mt-3">
-              <button onclick="app.allowExit('${r.id}')" class="flex-1 bg-emerald-600 text-white font-bold py-2.5 rounded-xl">Allow Exit</button>
-              <button onclick="app.denyExit('${r.id}')" class="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl">Deny</button></div>` : ''}
+              <p class="col-span-2"><b>Call verification:</b> ${r.verification ? `${r.verification.type} &middot; ${r.verification.outcome}` : '-'}</p>
+            </div>${action}
           </div>`;
         this.renderRecentOnly();
       }
-
       banner(color, title, note) {
-        const map = { emerald:'bg-emerald-100 border-emerald-400 text-emerald-900', red:'bg-red-100 border-red-400 text-red-900', orange:'bg-orange-100 border-orange-400 text-orange-900' };
+        const map = { emerald:'bg-emerald-100 border-emerald-400 text-emerald-900', red:'bg-red-100 border-red-400 text-red-900', orange:'bg-orange-100 border-orange-400 text-orange-900', indigo:'bg-indigo-100 border-indigo-400 text-indigo-900' };
         return `<div class="border-2 rounded-2xl p-4 text-center ${map[color]}"><p class="text-lg font-extrabold">${title}</p><p class="text-xs">${note}</p></div>`;
       }
-
       allowExit(id) {
         if (!this.guard('SECURITY')) return;
         const r = DB.requests.find(x => x.id === id);
-        if (!r || statusOf(r) !== 'APPROVED') return alert('Pass is no longer valid.');
+        if (!r || statusOf(r) !== 'APPROVED') return toast('Pass is no longer valid.', 'err');
         r.status = 'USED'; r.usedAt = Date.now(); r.usedBy = this.session.id;
-        this.logScan(r.passCode, DB.users[r.studentId], 'EXIT ALLOWED');
-        this.lookup(r.passCode);
+        this.logScan(r.passCode, DB.users[r.studentId], 'EXIT ALLOWED'); log('GATE_EXIT', r.id); this.lookup(r.passCode);
       }
       denyExit(id) {
         const r = DB.requests.find(x => x.id === id);
         this.logScan(r.passCode, DB.users[r.studentId], 'EXIT DENIED');
-        document.getElementById('gateResult').innerHTML = this.banner('red', 'EXIT DENIED', 'Pass remains unused. Contact the caretaker.');
-        this.renderRecentOnly();
+        $('gateResult').innerHTML = this.banner('red', 'EXIT DENIED', 'Pass remains unused. Contact the caretaker.'); this.renderRecentOnly();
+      }
+      logReturn(id) {
+        if (!this.guard('SECURITY')) return;
+        const r = DB.requests.find(x => x.id === id);
+        if (!r || r.status !== 'USED') return;
+        r.status = 'RETURNED'; r.returnedAt = Date.now(); r.lateMin = Math.max(0, Math.round((r.returnedAt - new Date(r.returnTime)) / 60000));
+        this.logScan(r.passCode, DB.users[r.studentId], 'RETURN LOGGED'); log('GATE_RETURN', `${r.id} late=${r.lateMin}m`);
+        $('gateResult').innerHTML = this.banner(r.lateMin ? 'orange' : 'emerald', 'RETURN LOGGED', r.lateMin ? `Returned ${r.lateMin} min late.` : 'Returned on time.'); this.renderRecentOnly();
       }
       logScan(code, u, result) { DB.scans.push({ code, name: u ? u.name : null, result, time: Date.now(), by: this.session.id }); saveDB(); }
-      renderRecentOnly() { const keep = document.getElementById('gateResult').innerHTML; this.renderSecurity(); document.getElementById('gateResult').innerHTML = keep; }
+      renderRecentOnly() { const keep = $('gateResult').innerHTML; this.renderSecurity(); $('gateResult').innerHTML = keep; }
+
+      /* ---------- FACULTY / ADMIN ---------- */
+      setFT(t) { this.ft = t; this.renderFaculty(); }
+      renderFaculty() {
+        if (!this.guard('FACULTY')) return;
+        const tabs = [['overview','Overview'],['outside','Outside Now'],['requests','All Requests'],['students','Students'],['recordings','Call Recordings'],['audit','Audit Log']];
+        const body = { overview:()=>this.fOverview(), outside:()=>this.fOutside(), requests:()=>this.fRequests(), students:()=>this.fStudents(), recordings:()=>this.fRecordings(), audit:()=>this.fAudit() }[this.ft]();
+        $('appContent').innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2">
+            ${tabs.map(([k,l]) => `<button onclick="app.setFT('${k}')" class="px-4 py-2 rounded-xl text-xs font-semibold ${this.ft===k?'bg-indigo-700 text-white':'bg-slate-100 text-slate-600'}">${l}</button>`).join('')}
+            <button onclick="app.exportCSV()" class="btn ml-auto px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white">Export CSV</button>
+          </div>${body}</div>`;
+        lucide.createIcons();
+      }
+      bars(entries, color = 'bg-indigo-600') {
+        const max = Math.max(1, ...entries.map(e => e[1]));
+        return entries.map(([l, n]) => `<div class="flex items-center gap-2 text-[11px] mb-1.5"><span class="w-20 text-slate-500 truncate">${esc(l)}</span><div class="flex-1 bg-slate-100 rounded h-3"><div class="${color} h-3 rounded" style="width:${n/max*100}%"></div></div><b class="w-6 text-right">${n}</b></div>`).join('');
+      }
+      fOverview() {
+        const R = DB.requests, st = R.map(statusOf), cnt = s => st.filter(x => x === s).length;
+        const vReq = R.filter(r => r.verification), femReq = R.filter(r => isFemale(DB.users[r.studentId]) && ['APPROVED','USED','RETURNED'].includes(r.status));
+        const femOk = femReq.filter(r => r.verification?.type === 'video').length;
+        const lateRet = R.filter(r => r.lateMin > 0).length;
+        const days = Array.from({length:7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); const k = d.toDateString(); return [d.toLocaleDateString('en-IN',{weekday:'short'}), R.filter(r => new Date(r.createdAt).toDateString() === k).length]; });
+        const byBranch = {}; R.forEach(r => { const d = DB.users[r.studentId]?.dept || '-'; byBranch[d] = (byBranch[d] || 0) + 1; });
+        const branchTop = Object.entries(byBranch).sort((a,b) => b[1]-a[1]).slice(0, 6);
+        const reasons = {}; R.forEach(r => { const k = r.reason.toLowerCase().trim(); reasons[k] = (reasons[k] || 0) + 1; });
+        const reasonTop = Object.entries(reasons).sort((a,b) => b[1]-a[1]).slice(0, 5);
+        return `
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            ${stat('Registered Students', Object.keys(DB.users).length, 'text-indigo-700')}
+            ${stat('Pending Approvals', cnt('PENDING'), 'text-amber-600')}
+            ${stat('Outside Campus', cnt('USED') + cnt('OVERDUE'), 'text-indigo-700')}
+            ${stat('Overdue Returns', cnt('OVERDUE'), 'text-red-600', 'Needs follow-up')}
+            ${stat('Total Requests', R.length)}
+            ${stat('Late Returns (all time)', lateRet, 'text-orange-600')}
+            ${stat('Calls Recorded', DB.recordings.length, 'text-purple-700', mb(DB.recordings.reduce((a, r) => a + r.size, 0)))}
+            ${stat('Girls Video Compliance', femReq.length ? Math.round(femOk / femReq.length * 100) + '%' : '100%', 'text-emerald-700', `${femOk}/${femReq.length} approved with video`)}
+          </div>
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4"><h3 class="text-sm font-bold mb-3">Requests - last 7 days</h3>${this.bars(days)}</div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-4"><h3 class="text-sm font-bold mb-3">Top branches</h3>${branchTop.length ? this.bars(branchTop, 'bg-emerald-600') : '<p class="text-xs text-slate-400">No data yet.</p>'}</div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-4"><h3 class="text-sm font-bold mb-3">Common reasons</h3>${reasonTop.length ? this.bars(reasonTop, 'bg-purple-600') : '<p class="text-xs text-slate-400">No data yet.</p>'}</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 text-xs text-slate-600">Verification coverage: <b>${vReq.length}</b> of <b>${R.length}</b> requests have a recorded verification call. Policy: girls - video call mandatory; boys - phone call mandatory; every call recorded.</div>`;
+      }
+      fOutside() {
+        const out = DB.requests.filter(r => r.status === 'USED').sort((a,b) => new Date(a.returnTime) - new Date(b.returnTime));
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-5"><h3 class="text-sm font-bold mb-3">Students currently outside campus (${out.length})</h3>
+          <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Student</th><th class="p-3">Destination</th><th class="p-3">Left</th><th class="p-3">Due back</th><th class="p-3">Status</th><th class="p-3">Contact</th></tr></thead><tbody class="divide-y">
+          ${out.length === 0 ? '<tr><td colspan="6" class="p-4 text-center text-slate-400">Everyone is on campus.</td></tr>' : out.map(r => {
+            const u = DB.users[r.studentId], over = Math.round((Date.now() - new Date(r.returnTime)) / 60000), g = (u.family||[])[0];
+            return `<tr><td class="p-3"><b>${esc(u.name)}</b><br>${esc(u.id)} &middot; ${esc(u.dept)}</td><td class="p-3">${esc(r.destination)}</td><td class="p-3">${fmt(r.usedAt)}</td><td class="p-3">${fmt(r.returnTime)}</td>
+              <td class="p-3">${over > 0 ? `<span class="text-red-600 font-bold">${over} min overdue</span>` : '<span class="text-emerald-700 font-semibold">On time</span>'}</td>
+              <td class="p-3"><a class="text-indigo-700 underline" href="tel:+91${esc(u.phone)}">Student</a>${g ? ` &middot; <a class="text-indigo-700 underline" href="tel:+91${esc(g.phone)}">${esc(g.relation)}</a>` : ''}</td></tr>`; }).join('')}
+          </tbody></table></div></div>`;
+      }
+      fRequests() {
+        const rows = DB.requests.slice().sort((a,b) => b.createdAt - a.createdAt);
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-5"><h3 class="text-sm font-bold mb-3">All requests (${rows.length})</h3>
+          <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Ref</th><th class="p-3">Student</th><th class="p-3">Type &amp; Reason</th><th class="p-3">Out / Return</th><th class="p-3">Verification</th><th class="p-3">Status</th></tr></thead><tbody class="divide-y">
+          ${rows.length === 0 ? '<tr><td colspan="6" class="p-4 text-center text-slate-400">No requests yet.</td></tr>' : rows.map(r => { const u = DB.users[r.studentId] || {}, v = r.verification;
+            return `<tr><td class="p-3 font-mono font-bold">${esc(r.id)}</td><td class="p-3">${esc(u.name)}<br><span class="text-slate-400">${esc(r.studentId)}</span></td><td class="p-3"><b>${esc(r.type)}</b><br>${esc(r.reason)} &rarr; ${esc(r.destination)}</td>
+              <td class="p-3">${fmt(r.departureTime)}<br>${fmt(r.returnTime)}</td><td class="p-3">${v ? `${v.type} &middot; ${v.outcome}<br><span class="text-slate-400">by ${esc(v.by)}</span>` : '-'}</td><td class="p-3">${badge(statusOf(r))}</td></tr>`; }).join('')}
+          </tbody></table></div></div>`;
+      }
+      fStudents() {
+        const q = (this.sq || '').toLowerCase();
+        const list = Object.values(DB.users).filter(u => !q || u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.dept.toLowerCase().includes(q));
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-5"><div class="flex items-center justify-between mb-3"><h3 class="text-sm font-bold">Student directory (${list.length})</h3>
+          <input oninput="app.sq=this.value;app.renderFaculty();" value="${esc(this.sq||'')}" placeholder="Search name / ID / branch" class="p-2 text-xs border rounded-xl w-56"></div>
+          <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Student</th><th class="p-3">Branch</th><th class="p-3">Contact</th><th class="p-3">Guardian</th><th class="p-3">Outings</th><th class="p-3">Leaves</th><th class="p-3">Late</th></tr></thead><tbody class="divide-y">
+          ${list.map(u => { const m = DB.requests.filter(r => r.studentId === u.id), g = (u.family||[])[0];
+            return `<tr><td class="p-3"><b>${esc(u.name)}</b><br>${esc(u.id)} &middot; ${esc(u.gender)}</td><td class="p-3">${esc(u.dept)}</td><td class="p-3">+91 ${esc(u.phone)}</td>
+              <td class="p-3">${g ? `${esc(g.name)} (${esc(g.relation)})<br>+91 ${esc(g.phone)}` : '<span class="text-red-600">Not added</span>'}</td>
+              <td class="p-3">${m.filter(r => r.type==='Outing' && taken(r)).length}</td><td class="p-3">${m.filter(r => r.type==='Long Leave' && taken(r)).length}</td><td class="p-3 ${m.some(r=>r.lateMin>0)?'text-red-600 font-bold':''}">${m.filter(r => r.lateMin > 0).length}</td></tr>`; }).join('')}
+          </tbody></table></div></div>`;
+      }
+      fRecordings() {
+        const rows = DB.recordings.slice().reverse();
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-5"><h3 class="text-sm font-bold mb-1">Verification call recordings (${rows.length})</h3>
+          <p class="text-[11px] text-slate-400 mb-3">Stored in this browser (IndexedDB)${API_BASE ? ' and uploaded to the backend' : ''}. Access is limited to faculty. Follow your institution's retention policy.</p>
+          <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Recording</th><th class="p-3">Student</th><th class="p-3">Type</th><th class="p-3">Recorded</th><th class="p-3">Size</th><th class="p-3 text-right">Action</th></tr></thead><tbody class="divide-y">
+          ${rows.length === 0 ? '<tr><td colspan="6" class="p-4 text-center text-slate-400">No recordings yet.</td></tr>' : rows.map(r => `<tr><td class="p-3 font-mono">${esc(r.id)}<br><span class="text-slate-400">${esc(r.requestId)}</span></td><td class="p-3">${esc(DB.users[r.studentId]?.name)}</td>
+            <td class="p-3">${r.kind === 'video' ? 'Video' : 'Audio'}</td><td class="p-3">${fmt(r.at)}<br><span class="text-slate-400">by ${esc(r.by)}</span></td><td class="p-3">${mb(r.size)}</td>
+            <td class="p-3 text-right"><button onclick="app.playRec('${r.id}')" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">Play</button> <button onclick="app.downloadRec('${r.id}')" class="px-3 py-1 bg-slate-100 rounded font-semibold">Download</button></td></tr>`).join('')}
+          </tbody></table></div></div>`;
+      }
+      fAudit() {
+        const rows = DB.audit.slice(-100).reverse();
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-5"><h3 class="text-sm font-bold mb-3">Audit log (latest 100)</h3>
+          <div class="text-xs divide-y">${rows.length === 0 ? '<p class="text-slate-400">Nothing logged yet.</p>' : rows.map(a => `<div class="py-1.5 flex justify-between gap-3"><span><b>${esc(a.action)}</b> <span class="text-slate-500">${esc(a.details)}</span></span><span class="text-slate-400 whitespace-nowrap">${esc(a.by)} &middot; ${fmt(a.t)}</span></div>`).join('')}</div></div>`;
+      }
+      async playRec(id) {
+        const blob = await IDB.get(id), m = DB.recordings.find(r => r.id === id);
+        if (!blob) return toast('Recording file not found in this browser.', 'err');
+        log('RECORDING_VIEWED', id);
+        const url = URL.createObjectURL(blob);
+        openModal(`${modalHead('Recording ' + esc(id))}<${m.kind === 'video' ? 'video' : 'audio'} src="${url}" controls autoplay class="w-full rounded-xl"></${m.kind === 'video' ? 'video' : 'audio'}>`, true);
+      }
+      async downloadRec(id) {
+        const blob = await IDB.get(id); if (!blob) return toast('Recording file not found in this browser.', 'err');
+        log('RECORDING_DOWNLOADED', id);
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = id + '.webm'; a.click();
+      }
+      exportCSV() {
+        const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+        const head = ['Ref','StudentID','Name','Branch','Gender','Type','Reason','Destination','Out','Return','Status','Verification','Outcome','VerifiedBy','ExitAt','ReturnedAt','LateMin'];
+        const rows = DB.requests.map(r => { const u = DB.users[r.studentId] || {}, v = r.verification || {};
+          return [r.id, r.studentId, u.name, u.dept, u.gender, r.type, r.reason, r.destination, r.departureTime, r.returnTime, statusOf(r), v.type, v.outcome, v.by,
+                  r.usedAt ? new Date(r.usedAt).toISOString() : '', r.returnedAt ? new Date(r.returnedAt).toISOString() : '', r.lateMin ?? ''].map(q).join(','); });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([[head.join(','), ...rows].join('\n')], { type:'text/csv' }));
+        a.download = `smartpass-report-${new Date().toISOString().slice(0,10)}.csv`; a.click(); log('CSV_EXPORT', rows.length + ' rows');
+      }
     }
 
     const app = new App();
-    window.onload = () => { app.init(); lucide.createIcons(); };
-  </script>
-  <!-- PASTE SCRIPT AT THE VERY BOTTOM (Before </body>) -->
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => {
-        const splash = document.getElementById('splash-screen');
-        if (splash) {
-          splash.classList.add('opacity-0', 'pointer-events-none');
-          setTimeout(() => splash.remove(), 700);
-        }
-      }, 2000);
+    window.addEventListener('load', () => {
+      app.init(); lucide.createIcons();
+      setTimeout(() => { const s = $('splash-screen'); if (s) { s.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => s.remove(), 700); } }, 1500);
     });
-    // 1. Add this helper function to generate the verification UI and enforce the girls' video call rule
-  function renderVerificationUI(request) {
-    const isFemale = request.student_gender && request.student_gender.toLowerCase() === 'female';
-    const isVerified = request.verification_status === 'Verified';
-    const verificationType = request.verification_type || '';
-
-    // Girls MUST have 'video' verification. Boys can have 'phone' or 'video'.
-    const canApprove = isVerified && (!isFemale || verificationType === 'video');
-
-    return `
-      <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold px-2 py-1 rounded ${isVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
-            ${isVerified ? `Verified via ${verificationType.toUpperCase()}` : 'Verification Pending'}
-          </span>
-          ${isFemale ? '<span class="text-xs text-purple-700 font-bold">🔒 Video Call Required (Female Student)</span>' : ''}
-        </div>
-
-        <div class="flex gap-2">
-          <button onclick="triggerVerification('${request.id}', 'phone')" class="px-3 py-1.5 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100">
-            📞 Phone Verify
-          </button>
-          <button onclick="triggerVerification('${request.id}', 'video')" class="px-3 py-1.5 bg-purple-50 text-purple-600 rounded text-xs font-medium hover:bg-purple-100">
-            📹 Video Verify
-          </button>
-        </div>
-      </div>
-    `;
-  }
-
-  // 2. Add this handler function to call your backend when an official clicks verify
-  async function triggerVerification(requestId, type) {
-    if (type === 'video') {
-      alert("Launching secure video verification stream...");
-      // Optional: open your video modal / call interface here
-    } else {
-      alert("Recording phone verification log...");
-    }
-
-    try {
-      const response = await fetch(`/api/verify-call/${requestId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          verificationType: type,
-          verifiedBy: "Caretaker / Official", // Update with your actual logged-in user state if available
-          notes: `Verified via ${type} call`
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        alert("Verification successfully recorded for audit logs!");
-        location.reload(); // Refresh to update view status
-      } else {
-        alert("Error: " + data.error);
-      }
-    } catch (err) {
-      console.error("Failed to connect to server:", err);
-    }
-  }
   </script>
-
 </body>
 </html>
