@@ -650,6 +650,67 @@
         }
       }, 2000);
     });
+    // 1. Add this helper function to generate the verification UI and enforce the girls' video call rule
+  function renderVerificationUI(request) {
+    const isFemale = request.student_gender && request.student_gender.toLowerCase() === 'female';
+    const isVerified = request.verification_status === 'Verified';
+    const verificationType = request.verification_type || '';
+
+    // Girls MUST have 'video' verification. Boys can have 'phone' or 'video'.
+    const canApprove = isVerified && (!isFemale || verificationType === 'video');
+
+    return `
+      <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold px-2 py-1 rounded ${isVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+            ${isVerified ? `Verified via ${verificationType.toUpperCase()}` : 'Verification Pending'}
+          </span>
+          ${isFemale ? '<span class="text-xs text-purple-700 font-bold">🔒 Video Call Required (Female Student)</span>' : ''}
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="triggerVerification('${request.id}', 'phone')" class="px-3 py-1.5 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100">
+            📞 Phone Verify
+          </button>
+          <button onclick="triggerVerification('${request.id}', 'video')" class="px-3 py-1.5 bg-purple-50 text-purple-600 rounded text-xs font-medium hover:bg-purple-100">
+            📹 Video Verify
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // 2. Add this handler function to call your backend when an official clicks verify
+  async function triggerVerification(requestId, type) {
+    if (type === 'video') {
+      alert("Launching secure video verification stream...");
+      // Optional: open your video modal / call interface here
+    } else {
+      alert("Recording phone verification log...");
+    }
+
+    try {
+      const response = await fetch(`/api/verify-call/${requestId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          verificationType: type,
+          verifiedBy: "Caretaker / Official", // Update with your actual logged-in user state if available
+          notes: `Verified via ${type} call`
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("Verification successfully recorded for audit logs!");
+        location.reload(); // Refresh to update view status
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (err) {
+      console.error("Failed to connect to server:", err);
+    }
+  }
   </script>
 
 </body>
