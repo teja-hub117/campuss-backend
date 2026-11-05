@@ -60,6 +60,14 @@
   </div>
   <div id="dlg" class="fixed inset-0 bg-slate-900/60 z-[60] hidden flex items-center justify-center p-4"></div>
   <div id="toasts" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] space-y-2 w-[92%] max-w-sm"></div>
+  <!-- Live Camera Capture Field -->
+<div class="mb-4">
+  <label class="block text-sm font-medium text-gray-700 mb-1">Take Profile Photo (Required)</label>
+  <input type="file" accept="image/*" capture="user" id="cameraInput" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewCapturedImage(event)" />
+  <div class="mt-3">
+    <img id="photoPreview" class="w-20 h-20 rounded-full object-cover border-2 border-blue-600 hidden shadow-md" alt="Captured Preview" />
+  </div>
+</div>
 
   <script>
     /* ========================================================================
@@ -339,6 +347,7 @@
         if (u) { if (u.email.toLowerCase() !== mail || u.phone !== phone) return this.showErr('sErr', 'Email or mobile does not match the registered profile.'); }
         else { DB.users[id] = { id, name, gender: sGender.value, dept: sDept.value, email: mail, phone, family: [] }; saveDB(); log('STUDENT_REGISTERED', id); }
         this.startSession('STUDENT', id);
+        
       }
       loginParent(e) {
         e.preventDefault();
