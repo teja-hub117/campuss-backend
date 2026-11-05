@@ -284,6 +284,128 @@
         lucide.createIcons();
       }
 
+      /* ---------- SHARED: HISTORY + FAMILY + PARENT VIEW ---------- */
+      setHF(k) { this.hf = k; this.route(); }
+
+      historyCard(list, isStudent) {
+        const f = this.hf || 'ALL';
+        const rows = list.filter(r => f === 'ALL' || (f === 'OUTING' ? r.type === 'Outing' : r.type === 'Long Leave'));
+        const tb = (k, l) => `<button onclick="app.setHF('${k}')" class="px-3 py-1 rounded-lg text-[11px] font-semibold ${f===k?'bg-indigo-700 text-white':'bg-slate-100 text-slate-600'}">${l}</button>`;
+        const cols = isStudent ? 5 : 4;
+        return `
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 class="text-sm font-bold">Previous Leaves &amp; Outings</h3>
+              <div class="flex gap-2">${tb('ALL','All')}${tb('OUTING','Outings')}${tb('LEAVE','Leaves')}</div>
+            </div>
+            <div class="overflow-x-auto"><table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 uppercase"><tr><th class="p-3">Ref</th><th class="p-3">Type &amp; Reason</th><th class="p-3">Out / Return</th><th class="p-3">Status</th>${isStudent ? '<th class="p-3 text-right">Action</th>' : ''}</tr></thead>
+              <tbody class="divide-y divide-slate-200">
+              ${rows.length === 0 ? `<tr><td colspan="${cols}" class="p-4 text-center text-slate-400">No records found.</td></tr>` : rows.map(r => {
+                const s = statusOf(r);
+                return `<tr>
+                  <td class="p-3 font-mono font-bold">${esc(r.id)}</td>
+                  <td class="p-3"><b>${esc(r.type)}</b><br>${esc(r.reason)} <span class="text-slate-400">&rarr; ${esc(r.destination)}</span>${r.remark ? `<br><span class="text-red-600">Remark: ${esc(r.remark)}</span>`:''}</td>
+                  <td class="p-3">${fmt(r.departureTime)}<br>${fmt(r.returnTime)}</td>
+                  <td class="p-3">${badge(s)}${s === 'USED' ? `<br><span class="text-[10px] text-slate-400">Exit: ${fmt(r.usedAt)}</span>` : ''}</td>
+                  ${isStudent ? `<td class="p-3 text-right">
+                    ${s === 'APPROVED' ? `<button onclick="app.showTicket('${r.id}')" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">View Pass</button>` : ''}
+                    ${s === 'PENDING' ? `<button onclick="app.cancelRequest('${r.id}')" class="px-3 py-1 bg-red-50 text-red-700 rounded font-semibold">Cancel</button>` : ''}
+                  </td>` : ''}
+                </tr>`; }).join('')}
+              </tbody></table></div>
+          </div>`;
+      }
+
+      familyCard(u, editable) {
+        const fam = u.family || [];
+        return `
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold">Family Members</h3>
+              ${editable ? `<button onclick="app.openFamily()" class="bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-lg">+ Add Member</button>` : ''}
+            </div>
+            ${fam.length === 0 ? '<p class="text-xs text-slate-400">No family details added yet.</p>' : `<div class="grid md:grid-cols-2 gap-3">${fam.map(m => `
+              <div class="border border-slate-200 rounded-xl p-3 text-xs flex justify-between items-start gap-2">
+                <div>
+                  <p class="font-bold text-sm">${esc(m.name)} <span class="text-slate-400 font-normal">(${esc(m.relation)})</span></p>
+                  <p>+91 ${esc(m.phone)}</p>
+                  ${m.occupation ? `<p class="text-slate-500">${esc(m.occupation)}</p>` : ''}
+                  ${m.address ? `<p class="text-slate-500">${esc(m.address)}</p>` : ''}
+                </div>
+                ${editable ? `<button onclick="app.removeFamily('${m.id}')" class="text-red-600 font-semibold">Remove</button>` : ''}
+              </div>`).join('')}</div>`}
+          </div>`;
+      }
+
+      openFamily() {
+        if (!this.guard('STUDENT')) return;
+        if ((DB.users[this.session.id].family || []).length >= 6) return alert('You can add up to 6 family members.');
+        document.getElementById('modalCard').innerHTML = `
+          <div class="flex justify-between items-center pb-3 border-b mb-4"><h3 class="font-bold">Add Family Member</h3><button onclick="app.closeModal()"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+          <form onsubmit="app.saveFamily(event)" class="space-y-3 text-xs">
+            <div><label class="block font-semibold mb-1">Full Name</label><input id="fName" required maxlength="60" class="w-full p-2.5 border rounded-xl"></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="block font-semibold mb-1">Relation</label>
+                <select id="fRel" class="w-full p-2.5 border rounded-xl"><option>Father</option><option>Mother</option><option>Guardian</option><option>Brother</option><option>Sister</option><option>Grandparent</option><option>Other</option></select></div>
+              <div><label class="block font-semibold mb-1">Mobile Number</label><input id="fPhone" type="tel" required maxlength="10" class="w-full p-2.5 border rounded-xl" placeholder="9876543210"></div>
+            </div>
+            <div><label class="block font-semibold mb-1">Occupation (optional)</label><input id="fJob" maxlength="60" class="w-full p-2.5 border rounded-xl"></div>
+            <div><label class="block font-semibold mb-1">Address (optional)</label><input id="fAddr" maxlength="120" class="w-full p-2.5 border rounded-xl"></div>
+            <p id="fErr" class="text-red-600 font-semibold hidden"></p>
+            <button class="w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl">Save Member</button>
+          </form>`;
+        document.getElementById('modalBackdrop').classList.remove('hidden');
+        lucide.createIcons();
+      }
+
+      saveFamily(e) {
+        e.preventDefault();
+        if (!this.guard('STUDENT')) return;
+        if (!PHONE_RE.test(fPhone.value.trim())) return this.showErr('fErr', 'Enter a valid 10-digit mobile number.');
+        const u = DB.users[this.session.id];
+        u.family = u.family || [];
+        u.family.push({ id: 'F' + Date.now(), name: fName.value.trim(), relation: fRel.value, phone: fPhone.value.trim(),
+                        occupation: fJob.value.trim(), address: fAddr.value.trim() });
+        saveDB(); this.closeModal(); this.renderStudent();
+      }
+
+      removeFamily(fid) {
+        if (!this.guard('STUDENT') || !confirm('Remove this family member?')) return;
+        const u = DB.users[this.session.id];
+        u.family = (u.family || []).filter(m => m.id !== fid);
+        saveDB(); this.renderStudent();
+      }
+
+      /* ---------- PARENT (read-only) ---------- */
+      renderParent() {
+        if (!this.guard('PARENT')) return;
+        const u = DB.users[this.session.id];
+        const mine = DB.requests.filter(r => r.studentId === u.id).sort((a,b) => b.createdAt - a.createdAt);
+        const cnt = f => mine.filter(f).length;
+        const stat = (label, val, color) => `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm"><p class="text-[11px] text-slate-500 font-semibold uppercase">${label}</p><p class="text-2xl font-bold ${color} mt-1">${val}</p></div>`;
+        document.getElementById('appContent').innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 text-xs text-indigo-800 font-semibold">Parent view &middot; read only. You are viewing your ward's leave and outing records.</div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center space-x-4">
+            <div class="w-16 h-16 rounded-2xl bg-indigo-700 text-white flex items-center justify-center text-xl font-bold">${esc(initials(u.name))}</div>
+            <div>
+              <h2 class="text-xl font-bold">${esc(u.name)}</h2>
+              <p class="text-xs text-slate-500">ID: <b>${esc(u.id)}</b> &middot; ${esc(u.dept)} &middot; ${esc(u.gender)}</p>
+              <p class="text-xs text-slate-500">${esc(u.email)} &middot; +91 ${esc(u.phone)}</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            ${stat('Outings Taken', cnt(r => r.type === 'Outing' && r.status === 'USED'), 'text-indigo-700')}
+            ${stat('Leaves Taken', cnt(r => r.type === 'Long Leave' && r.status === 'USED'), 'text-emerald-700')}
+            ${stat('Total Requests', mine.length, 'text-slate-800')}
+            ${stat('Pending', cnt(r => r.status === 'PENDING'), 'text-amber-600')}
+          </div>
+          ${this.historyCard(mine, false)}
+          ${this.familyCard(u, false)}
+        </div>`;
+        lucide.createIcons();
+      }
       openRequest() {
         const u = DB.users[this.session.id];
         const open = DB.requests.find(r => r.studentId === u.id && ['PENDING','APPROVED'].includes(statusOf(r)));
